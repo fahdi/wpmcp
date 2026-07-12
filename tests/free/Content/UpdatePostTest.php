@@ -31,4 +31,11 @@ class UpdatePostTest extends \WP_UnitTestCase
         $this->assertSame('new', get_post($id)->post_title);
         $this->assertSame(0, (int) get_post_thumbnail_id($id));
     }
+
+    public function test_rejects_protected_meta(): void
+    {
+        $id = self::factory()->post->create();
+        $this->expectException(\InvalidArgumentException::class);
+        (new Update_Post())->handle(['post_id' => $id, 'meta' => ['_edit_lock' => '1']]);
+    }
 }
