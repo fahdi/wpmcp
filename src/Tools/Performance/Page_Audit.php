@@ -8,8 +8,9 @@ if (! defined('ABSPATH')) {
 
 class Page_Audit
 {
-    private const RESPONSE_WARN_MS = 800;
-    private const HTML_WARN_BYTES  = 512000; // 500 KB of HTML.
+    private const RESPONSE_WARN_MS  = 800;
+    private const HTML_WARN_BYTES   = 512000; // 500 KB of HTML.
+    private const RENDER_BLOCK_WARN = 5;
 
     /**
      * Parse a fetched struct into findings plus a page_fetch meta block. Pure.
@@ -111,6 +112,89 @@ class Page_Audit
                 'A page cache that emits Cache-Control lets browsers and CDNs reuse the response.'
             );
 
+        $body = (string) ($fetched['body'] ?? '');
+        $host = (string) ($fetched['host'] ?? '');
+        $dom  = $this->parse_dom($body);
+        if (null !== $dom) {
+            $findings = array_merge($findings, $this->asset_findings($dom, $host));
+        }
+
         return ['findings' => $findings, 'page_fetch' => $page_fetch];
+    }
+
+    private function parse_dom(string $html): ?\DOMDocument
+    {
+        if ('' === trim($html)) {
+            return null;
+        }
+        $previous = libxml_use_internal_errors(true);
+        $dom      = new \DOMDocument();
+        $dom->loadHTML($html, LIBXML_NOWARNING | LIBXML_NOERROR);
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+        return $dom;
+    }
+
+    private function asset_findings(\DOMDocument $dom, string $host): array
+    {
+        $links   = $dom->getElementsByTagName('link');
+        $scripts = $dom->getElementsByTagName('script');
+
+        $head_css = 0;
+        foreach ($links as $link) {
+            $rel = strtolower((string) $link->getAttribute('rel'));
+            if ('stylesheet' !== $rel) {
+                continue;
+            }
+            if ($this->in_head($link)) {
+                $head_css++;
+            }
+        }
+
+        $sync_head = 0;
+        foreach ($scripts as $script) {
+            $src = (string) $script->getAttribute('src');
+            if ('' === $src) {
+                continue; // inline.
+            }
+            $is_async = $script->hasAttribute('async') || $script->hasAttribute('defer');
+            if (! $is_async && $this->in_head($script)) {
+                $sync_head++;
+            }
+        }
+
+        $render_blocking = $head_css + $sync_head;
+
+        $findings   = [];
+        $findings[] = ($render_blocking > self::RENDER_BLOCK_WARN)
+            ? Finding::make(
+                'render_blocking',
+                'assets',
+                'Render-blocking resources',
+                'warning',
+                $render_blocking,
+                sprintf('%d render-blocking resources in <head> (%d CSS, %d sync JS).', $render_blocking, $head_css, $sync_head),
+                'Defer non-critical JS (async/defer) and combine or inline critical CSS to unblock first paint.'
+            )
+            : Finding::make(
+                'render_blocking',
+                'assets',
+                'Render-blocking resources',
+                'info',
+                $render_blocking,
+                sprintf('%d render-blocking resources in <head> (%d CSS, %d sync JS).', $render_blocking, $head_css, $sync_head)
+            );
+
+        return $findings;
+    }
+
+    private function in_head(\DOMNode $node): bool
+    {
+        for ($parent = $node->parentNode; null !== $parent; $parent = $parent->parentNode) {
+            if ('head' === strtolower($parent->nodeName)) {
+                return true;
+            }
+        }
+        return false;
     }
 }

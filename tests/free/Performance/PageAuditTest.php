@@ -109,4 +109,50 @@ class PageAuditTest extends \WP_UnitTestCase
         $none = $this->audit->analyze($this->fetched('<html></html>', []), false);
         $this->assertSame('warning', $this->status_of($none, 'cache_headers'));
     }
+
+    private function finding_of(array $result, string $id): ?array
+    {
+        foreach ($result['findings'] as $finding) {
+            if ($finding['id'] === $id) {
+                return $finding;
+            }
+        }
+        return null;
+    }
+
+    public function test_render_blocking_counts_head_css_and_sync_js(): void
+    {
+        $body = '<html><head>'
+            . '<link rel="stylesheet" href="/a.css">'
+            . '<link rel="stylesheet" href="/b.css">'
+            . '<script src="/sync.js"></script>'
+            . '<script src="/async.js" defer></script>'
+            . '</head><body></body></html>';
+
+        $result = $this->audit->analyze($this->fetched($body), false);
+        $render_blocking = $this->finding_of($result, 'render_blocking');
+
+        $this->assertNotNull($render_blocking);
+        // 2 head stylesheets + 1 sync script = 3; the deferred script does not count.
+        $this->assertSame(3, $render_blocking['value']);
+        $this->assertSame('info', $render_blocking['status']);
+    }
+
+    public function test_render_blocking_warns_above_five(): void
+    {
+        $body = '<html><head>'
+            . '<link rel="stylesheet" href="/a.css">'
+            . '<link rel="stylesheet" href="/b.css">'
+            . '<link rel="stylesheet" href="/c.css">'
+            . '<script src="/1.js"></script>'
+            . '<script src="/2.js"></script>'
+            . '<script src="/3.js"></script>'
+            . '</head><body></body></html>';
+
+        $result          = $this->audit->analyze($this->fetched($body), false);
+        $render_blocking = $this->finding_of($result, 'render_blocking');
+
+        $this->assertSame(6, $render_blocking['value']);
+        $this->assertSame('warning', $render_blocking['status']);
+    }
 }
