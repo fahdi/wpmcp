@@ -1,6 +1,6 @@
 {
   "name": "wpmcp/wpmcp",
-  "description": "AI builds and edits your WordPress site — and physically can't wreck it.",
+  "description": "AI builds and edits your WordPress site, and physically can't wreck it.",
   "license": "GPL-2.0-or-later",
   "require": { "php": ">=8.1" },
   "require-dev": {

@@ -13,7 +13,7 @@ class History_Page
     public function render(): void
     {
         $ops = (new List_Operations())->handle(['limit' => 50])['operations'];
-        echo '<div class="wrap"><h1>' . esc_html__('wpmcp — Agent History', 'wpmcp') . '</h1><table class="widefat"><thead><tr><th>Tool</th><th>Object</th><th>When</th><th></th></tr></thead><tbody>';
+        echo '<div class="wrap"><h1>' . esc_html__('wpmcp: Agent History', 'wpmcp') . '</h1><table class="widefat"><thead><tr><th>Tool</th><th>Object</th><th>When</th><th></th></tr></thead><tbody>';
         $nonce = wp_create_nonce('wpmcp_restore');
         foreach ($ops as $op) {
             printf(
