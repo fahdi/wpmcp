@@ -128,4 +128,10 @@ class AnalyzerTest extends \WP_UnitTestCase
 
         $this->assertSame([], $summary['top_recommendations']);
     }
+
+    public function test_validate_same_host_accepts_matching_host_and_rejects_others(): void
+    {
+        $this->assertTrue($this->analyzer->validate_same_host('https://example.com/page', 'example.com'));
+        $this->assertFalse($this->analyzer->validate_same_host('https://evil.test/page', 'example.com'));
+    }
 }

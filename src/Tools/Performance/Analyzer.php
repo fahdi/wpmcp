@@ -51,6 +51,15 @@ class Analyzer
     }
 
     /**
+     * Pure: is $url on $site_host?
+     */
+    public function validate_same_host(string $url, string $site_host): bool
+    {
+        $host = (string) wp_parse_url($url, PHP_URL_HOST);
+        return '' !== $host && strtolower($host) === strtolower($site_host);
+    }
+
+    /**
      * @param array $findings Finding[]
      * @return string[]
      */
