@@ -6,6 +6,7 @@ use WPMCP\MCP\{Ability, Registrar};
 use WPMCP\Pro\Gate;
 use WPMCP\Tools\Elementor\Get_Elementor_Data;
 use WPMCP\Tools\Elementor\Update_Element;
+use WPMCP\Tools\Elementor\Add_Widget;
 
 /**
  * Verifies the get-elementor-data ability is declared as pro-tier and that
@@ -104,5 +105,49 @@ class ElementorDeepAbilitiesRegistrationTest extends \WP_UnitTestCase
 
         $names = array_map(fn($a) => $a->name, $registrar->all());
         $this->assertContains('wpmcp/update-element', $names);
+    }
+
+    private function make_add_widget_ability(): Ability
+    {
+        return new Ability(
+            'wpmcp/add-widget',
+            'pro',
+            'Add a widget element as a child of a parent element.',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'post_id'     => ['type' => 'integer'],
+                    'parent_id'   => ['type' => 'string'],
+                    'widget_type' => ['type' => 'string'],
+                    'settings'    => ['type' => 'object'],
+                ],
+                'required'   => ['post_id', 'parent_id', 'widget_type'],
+            ],
+            [new Add_Widget(), 'handle'],
+            'edit_posts',
+            'elementor',
+            'update'
+        );
+    }
+
+    public function test_registrar_skips_add_widget_when_free(): void
+    {
+        Gate::set_pro_for_tests(false);
+
+        $registrar = new Registrar();
+        $registrar->register($this->make_add_widget_ability());
+
+        $this->assertCount(0, $registrar->all());
+    }
+
+    public function test_registrar_keeps_add_widget_when_pro(): void
+    {
+        Gate::set_pro_for_tests(true);
+
+        $registrar = new Registrar();
+        $registrar->register($this->make_add_widget_ability());
+
+        $names = array_map(fn($a) => $a->name, $registrar->all());
+        $this->assertContains('wpmcp/add-widget', $names);
     }
 }

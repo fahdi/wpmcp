@@ -71,6 +71,7 @@ use WPMCP\Tools\Elementor\List_Widgets;
 use WPMCP\Tools\Elementor\Get_Widget_Schema;
 use WPMCP\Tools\Elementor\Get_Elementor_Data;
 use WPMCP\Tools\Elementor\Update_Element;
+use WPMCP\Tools\Elementor\Add_Widget;
 use WPMCP\Tools\WooCommerce\List_Products;
 use WPMCP\Tools\WooCommerce\Get_Product;
 use WPMCP\Tools\WooCommerce\Create_Product;
@@ -1398,6 +1399,28 @@ final class Plugin
                 'required'   => [ 'post_id', 'element_id', 'settings' ],
             ],
             [$update_element, 'handle'],
+            'edit_posts',
+            'elementor',
+            'update'
+        ));
+
+        $add_widget = new Add_Widget();
+
+        $registrar->register(new Ability(
+            'wpmcp/add-widget',
+            'pro',
+            'Add a widget element (given a widget_type and optional settings) as a child of a specified parent element in a page\'s _elementor_data. The widget_type is validated against Elementor\'s own widgets manager first. Undoable via rollback-operation since _elementor_data is ordinary postmeta captured by the existing post snapshot',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'post_id'     => [ 'type' => 'integer' ],
+                    'parent_id'   => [ 'type' => 'string' ],
+                    'widget_type' => [ 'type' => 'string' ],
+                    'settings'    => [ 'type' => 'object' ],
+                ],
+                'required'   => [ 'post_id', 'parent_id', 'widget_type' ],
+            ],
+            [$add_widget, 'handle'],
             'edit_posts',
             'elementor',
             'update'
