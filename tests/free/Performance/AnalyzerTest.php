@@ -40,4 +40,14 @@ class AnalyzerTest extends \WP_UnitTestCase
         $this->assertSame(77, $summary['score']);
         $this->assertSame('C', $summary['grade']);
     }
+
+    public function test_score_clamps_at_zero(): void
+    {
+        $findings = array_fill(0, 10, $this->finding('critical', 'x'));
+
+        $summary = $this->analyzer->summarize($findings);
+
+        $this->assertSame(0, $summary['score']);
+        $this->assertSame('F', $summary['grade']);
+    }
 }
