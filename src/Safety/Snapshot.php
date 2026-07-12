@@ -8,11 +8,28 @@ if (! defined('ABSPATH')) {
 
 class Snapshot
 {
-    public static function capture(string $object_type, int $object_id): array
+    /**
+     * Capture the pre-mutation state of an object so it can later be restored
+     * by Rollback_Service::apply_snapshot(). The object identifier's type
+     * depends on $object_type: posts (and attachments, which are posts) are
+     * identified by their integer ID; options are identified by their string
+     * name. Dispatching here on $object_type, rather than on the PHP type of
+     * $object_id, keeps the door open for future object types (e.g. users)
+     * that might also use an int identifier but need different capture logic.
+     */
+    public static function capture(string $object_type, $object_id): array
+    {
+        if ('option' === $object_type) {
+            return self::capture_option((string) $object_id);
+        }
+        return self::capture_post($object_id);
+    }
+
+    private static function capture_post(int $object_id): array
     {
         $post = get_post($object_id, ARRAY_A);
         return [
-            'object_type' => $object_type,
+            'object_type' => 'post',
             'object_id'   => $object_id,
             'data'        => [
                 // Full row (all columns), not a hand-picked subset: a partial
@@ -30,6 +47,34 @@ class Snapshot
                 'comments' => $post ? self::capture_comments($object_id) : [],
             ],
         ];
+    }
+
+    /**
+     * Options have no equivalent of trash/force-delete: a write either
+     * changes an existing option's value or, if it didn't exist yet, an
+     * update introduces one. 'existed' records which case this was so
+     * Rollback_Service can decide between update_option() (put the old
+     * value back) and delete_option() (remove the option entirely, since it
+     * wasn't there before the mutation).
+     */
+    private static function capture_option(string $name): array
+    {
+        return [
+            'object_type' => 'option',
+            'object_id'   => $name,
+            'data'        => [
+                'name'    => $name,
+                'value'   => get_option($name),
+                'existed' => self::option_exists($name),
+            ],
+        ];
+    }
+
+    /** True if $name has a row in the options table, distinguishing "unset" from a falsy stored value. */
+    private static function option_exists(string $name): bool
+    {
+        $sentinel = '__wpmcp_missing__' . $name;
+        return get_option($name, $sentinel) !== $sentinel;
     }
 
     /** Comments (with their commentmeta) attached to the post, for resurrection after a force-delete. */

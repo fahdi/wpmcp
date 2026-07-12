@@ -17,4 +17,20 @@ class SnapshotCaptureTest extends \WP_UnitTestCase {
         $before = [ 'object_type' => 'post', 'object_id' => 5, 'data' => [ 'post' => [ 'post_content' => 'x' ], 'meta' => [] ] ];
         $this->assertEquals( $before, Snapshot::unserialize( Snapshot::serialize( $before ) ) );
     }
+
+    public function test_capture_records_existing_option_value(): void {
+        update_option( 'blogname', 'My Site' );
+        $snap = Snapshot::capture( 'option', 'blogname' );
+        $this->assertSame( 'option', $snap['object_type'] );
+        $this->assertSame( 'blogname', $snap['object_id'] );
+        $this->assertSame( 'blogname', $snap['data']['name'] );
+        $this->assertSame( 'My Site', $snap['data']['value'] );
+        $this->assertTrue( $snap['data']['existed'] );
+    }
+
+    public function test_capture_records_nonexistent_option(): void {
+        delete_option( 'wpmcp_test_missing_option' );
+        $snap = Snapshot::capture( 'option', 'wpmcp_test_missing_option' );
+        $this->assertFalse( $snap['data']['existed'] );
+    }
 }
