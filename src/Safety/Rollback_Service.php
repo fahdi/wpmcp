@@ -83,6 +83,35 @@ class Rollback_Service
     }
 
     /**
+     * Restore a WooCommerce order's prior status.
+     *
+     * update-order-status only ever changes the status, so the undo is simply
+     * to set the captured status back through WC_Order's CRUD setter, which
+     * writes to whichever store (HPOS or legacy CPT) is active. There is no
+     * delete-order tool, so the order always still exists here and is restored
+     * in place; a null captured status means the order did not exist at
+     * capture time, so there is nothing to restore.
+     */
+    private static function apply_wc_order_snapshot(array $snapshot): void
+    {
+        if (empty($snapshot['data']['status'])) {
+            return;
+        }
+
+        if (! function_exists('wc_get_order')) {
+            return;
+        }
+
+        $order = wc_get_order((int) $snapshot['object_id']);
+        if (! $order) {
+            return;
+        }
+
+        $order->set_status((string) $snapshot['data']['status']);
+        $order->save();
+    }
+
+    /**
      * Restore a user's editable profile to its pre-mutation state.
      *
      * Update_User only ever changes profile fields (never role, never
@@ -281,6 +310,11 @@ class Rollback_Service
 
         if ('comment' === $snapshot['object_type']) {
             self::apply_comment_snapshot($snapshot);
+            return;
+        }
+
+        if ('wc_order' === $snapshot['object_type']) {
+            self::apply_wc_order_snapshot($snapshot);
             return;
         }
 

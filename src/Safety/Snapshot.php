@@ -28,7 +28,33 @@ class Snapshot
         if ('comment' === $object_type) {
             return self::capture_comment((int) $object_id);
         }
+        if ('wc_order' === $object_type) {
+            return self::capture_wc_order((int) $object_id);
+        }
         return self::capture_post($object_id);
+    }
+
+    /**
+     * Capture a WooCommerce order's prior status so update-order-status can be
+     * undone. Only the status is captured, deliberately: an order can live in
+     * HPOS custom tables or the legacy CPT, and a full generic row-restore
+     * across both stores would be unsafe to promise. update-order-status only
+     * ever changes the status, so restoring exactly that (via WC_Order's CRUD
+     * setter, which writes correctly to whichever store is active) is an
+     * honest, complete undo of what the tool did. If the order no longer
+     * exists at capture time the status is null, matching how the post/comment
+     * paths record a missing object.
+     */
+    private static function capture_wc_order(int $order_id): array
+    {
+        $order = function_exists('wc_get_order') ? wc_get_order($order_id) : null;
+        return [
+            'object_type' => 'wc_order',
+            'object_id'   => $order_id,
+            'data'        => [
+                'status' => $order ? $order->get_status() : null,
+            ],
+        ];
     }
 
     /**
