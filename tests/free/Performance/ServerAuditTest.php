@@ -79,4 +79,23 @@ class ServerAuditTest extends \WP_UnitTestCase
         $this->assertSame('warning', $this->audit->evaluate_cron_backlog(1)['status']);
         $this->assertSame('warning', $this->audit->evaluate_cron_backlog(7)['status']);
     }
+
+    public function test_autoload_size_bands(): void
+    {
+        $this->assertSame('pass', $this->audit->evaluate_autoload_size(200 * 1024, [])['status']);
+        $this->assertSame('pass', $this->audit->evaluate_autoload_size(1048575, [])['status']);
+        $this->assertSame('warning', $this->audit->evaluate_autoload_size(1048576, [])['status']);
+        $this->assertSame('warning', $this->audit->evaluate_autoload_size(1500 * 1024, [])['status']);
+        $this->assertSame('critical', $this->audit->evaluate_autoload_size(3145728, [])['status']);
+        $this->assertSame('critical', $this->audit->evaluate_autoload_size(4 * 1024 * 1024, [])['status']);
+    }
+
+    public function test_autoload_size_value_includes_bytes_and_top_options(): void
+    {
+        $top    = [['option' => 'big_option', 'bytes' => 900]];
+        $result = $this->audit->evaluate_autoload_size(900, $top);
+
+        $this->assertSame(900, $result['value']['bytes']);
+        $this->assertSame($top, $result['value']['top']);
+    }
 }

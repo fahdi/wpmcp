@@ -11,6 +11,8 @@ class Server_Audit
     private const MIN_MEMORY_BYTES     = 134217728; // 128 MB
     private const PLUGIN_WARN_COUNT    = 40;
     private const REVISIONS_WARN_COUNT = 1000;
+    private const AUTOLOAD_WARN_BYTES  = 1048576;  // 1 MB
+    private const AUTOLOAD_CRIT_BYTES  = 3145728;  // 3 MB
 
     public function evaluate_php_version(string $version): array
     {
@@ -198,6 +200,46 @@ class Server_Audit
             );
         }
         return Finding::make('cron_backlog', 'config', 'WP-Cron backlog', 'pass', 0, 'No overdue cron events.');
+    }
+
+    public function evaluate_autoload_size(int $bytes, array $top_options): array
+    {
+        $human = $this->human_bytes($bytes);
+        $value = ['bytes' => $bytes, 'top' => $top_options];
+        if ($bytes >= self::AUTOLOAD_CRIT_BYTES) {
+            return Finding::make(
+                'autoload_size',
+                'database',
+                'Autoloaded options',
+                'critical',
+                $value,
+                sprintf('Autoloaded options total %s, loaded on every request.', $human),
+                'Find and disable autoload for the largest offenders (often stale plugin caches). See the listed options.'
+            );
+        }
+        if ($bytes >= self::AUTOLOAD_WARN_BYTES) {
+            return Finding::make(
+                'autoload_size',
+                'database',
+                'Autoloaded options',
+                'warning',
+                $value,
+                sprintf('Autoloaded options total %s.', $human),
+                'Trim autoloaded options above ~1 MB; large autoload bloats every request.'
+            );
+        }
+        return Finding::make('autoload_size', 'database', 'Autoloaded options', 'pass', $value, sprintf('Autoloaded options total %s.', $human));
+    }
+
+    private function human_bytes(int $bytes): string
+    {
+        if ($bytes >= 1048576) {
+            return round($bytes / 1048576, 1) . ' MB';
+        }
+        if ($bytes >= 1024) {
+            return round($bytes / 1024, 1) . ' KB';
+        }
+        return $bytes . ' B';
     }
 
     private function to_bytes(string $value): int
