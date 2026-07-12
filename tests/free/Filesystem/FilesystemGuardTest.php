@@ -96,4 +96,10 @@ class FilesystemGuardTest extends \WP_UnitTestCase
         $this->assertTrue(Filesystem_Guard::is_protected('/srv/site/.HTACCESS'));
         $this->assertFalse(Filesystem_Guard::is_protected('/srv/site/wp-content/themes/x/style.css'));
     }
+
+    public function test_backup_name_is_timestamped_and_sanitized(): void
+    {
+        $name = Filesystem_Guard::backup_name('wp-content/themes/x/style.css', '20260627-120000');
+        $this->assertSame('20260627-120000-wp-content-themes-x-style.css', $name);
+    }
 }

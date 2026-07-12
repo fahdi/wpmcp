@@ -76,4 +76,14 @@ class Filesystem_Guard
         $protected = (array) apply_filters('wpmcp_fs_protected_paths', $protected, $abs);
         return in_array($base, array_map('strtolower', $protected), true);
     }
+
+    /**
+     * Pure: a sanitized, timestamped backup filename for a relative path.
+     */
+    public static function backup_name(string $rel, string $timestamp): string
+    {
+        $flat = str_replace(['/', '\\'], '-', ltrim($rel, '/\\'));
+        $flat = preg_replace('/[^A-Za-z0-9._-]/', '-', $flat);
+        return $timestamp . '-' . $flat;
+    }
 }
