@@ -13,7 +13,7 @@
   "autoload-dev": { "psr-4": { "WPMCP\\Tests\\": "tests/" } },
   "scripts": {
     "test": "phpunit",
-    "lint": "phpcs -q --standard=PSR12 src"
+    "lint": "phpcs -q"
   },
   "config": {
     "allow-plugins": { "*": true },
