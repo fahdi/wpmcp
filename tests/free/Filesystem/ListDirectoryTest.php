@@ -21,6 +21,7 @@ class ListDirectoryTest extends \WP_UnitTestCase
         @unlink(ABSPATH . $this->rel_dir . '/sub/b.txt');
         @rmdir(ABSPATH . $this->rel_dir . '/sub');
         @unlink(ABSPATH . $this->rel_dir . '/a.txt');
+        @unlink(ABSPATH . $this->rel_dir . '/leak.txt');
         @rmdir(ABSPATH . $this->rel_dir);
         parent::tearDown();
     }
@@ -46,5 +47,37 @@ class ListDirectoryTest extends \WP_UnitTestCase
     {
         $this->expectException(\RuntimeException::class);
         (new List_Directory())->handle(['path' => $this->rel_dir . '/a.txt']);
+    }
+
+    /**
+     * Escape 2 (CRITICAL): an in-tree symlink pointing outside the root
+     * must not be dereferenced when listing. size/mtime must not be read
+     * through the link to outside content.
+     */
+    public function test_does_not_list_through_an_in_tree_symlink_to_outside_content(): void
+    {
+        $outside = sys_get_temp_dir() . '/wpmcp-escape2-list-' . uniqid() . '.txt';
+        file_put_contents($outside, str_repeat('x', 12345));
+
+        $link = ABSPATH . $this->rel_dir . '/leak.txt';
+        if (! @symlink($outside, $link)) {
+            @unlink($outside);
+            $this->markTestSkipped('symlink() unavailable in this environment');
+        }
+
+        try {
+            $result = (new List_Directory())->handle(['path' => $this->rel_dir]);
+
+            foreach ($result['entries'] as $entry) {
+                if ('leak.txt' === $entry['name']) {
+                    $this->assertNotSame(12345, $entry['size']);
+                }
+            }
+            $names = array_column($result['entries'], 'name');
+            $this->assertNotContains('leak.txt', $names);
+        } finally {
+            @unlink($link);
+            @unlink($outside);
+        }
     }
 }

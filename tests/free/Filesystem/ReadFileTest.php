@@ -18,6 +18,7 @@ class ReadFileTest extends \WP_UnitTestCase
     public function tearDown(): void
     {
         @unlink(ABSPATH . $this->rel_dir . '/hello.txt');
+        @unlink(ABSPATH . $this->rel_dir . '/leak.txt');
         @rmdir(ABSPATH . $this->rel_dir);
         parent::tearDown();
     }
@@ -52,5 +53,33 @@ class ReadFileTest extends \WP_UnitTestCase
         $this->assertArrayNotHasKey('content', $result);
 
         @unlink(ABSPATH . $this->rel_dir . '/binary.dat');
+    }
+
+    /**
+     * Escape 2 (CRITICAL): a symlink that lives inside the sandbox but
+     * points outside it must not be read through. resolve_path()
+     * previously canonicalized the path via realpath(), which follows
+     * symlinks, so an in-tree symlink to an outside file resolved to an
+     * "inside" real path and file_get_contents() then read the outside
+     * file's content.
+     */
+    public function test_rejects_reading_through_an_in_tree_symlink_to_outside_content(): void
+    {
+        $outside = sys_get_temp_dir() . '/wpmcp-escape2-read-' . uniqid() . '.txt';
+        file_put_contents($outside, "outside-secret\n");
+
+        $link = ABSPATH . $this->rel_dir . '/leak.txt';
+        if (! @symlink($outside, $link)) {
+            @unlink($outside);
+            $this->markTestSkipped('symlink() unavailable in this environment');
+        }
+
+        try {
+            $this->expectException(\RuntimeException::class);
+            (new Read_File())->handle(['path' => $this->rel_dir . '/leak.txt']);
+        } finally {
+            @unlink($link);
+            @unlink($outside);
+        }
     }
 }

@@ -43,17 +43,44 @@ class Search_Files
             max(1, isset($args['max_results']) ? (int) $args['max_results'] : self::DEFAULT_MAX_RESULTS)
         );
 
-        $matches = [];
-        $it      = new \RecursiveIteratorIterator(
-            new \RecursiveDirectoryIterator($abs, \FilesystemIterator::SKIP_DOTS),
+        $matches   = [];
+        $root_real = realpath($abs);
+        $it        = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator(
+                $abs,
+                \FilesystemIterator::SKIP_DOTS | \FilesystemIterator::FOLLOW_SYMLINKS
+            ),
             \RecursiveIteratorIterator::LEAVES_ONLY
         );
+        // Never descend into a symlinked directory: a symlink anywhere in
+        // the tree could otherwise walk the iterator outside the sandbox.
+        $it->setFlags($it->getFlags() & ~\FilesystemIterator::FOLLOW_SYMLINKS);
 
         foreach ($it as $f) {
+            // Skip symlinks outright (files or dirs): traversal must never
+            // read through a link, in-tree or not.
+            if ($f->isLink()) {
+                continue;
+            }
             if (! $f->isFile()) {
                 continue;
             }
             if ($extensions && ! in_array(strtolower($f->getExtension()), $extensions, true)) {
+                continue;
+            }
+
+            // Re-validate every yielded path: confirm its canonical form is
+            // still contained within root before reading it. This is what
+            // actually closes the escape, since a symlink deeper in a
+            // directory chain can still yield an outside real path even
+            // when the leaf itself is not a link.
+            $real = realpath($f->getPathname());
+            if (false === $real || false === $root_real) {
+                continue;
+            }
+            $real_n = rtrim($real, '/\\');
+            $root_n = rtrim($root_real, '/\\');
+            if ($real_n !== $root_n && 0 !== strpos($real_n, $root_n . DIRECTORY_SEPARATOR)) {
                 continue;
             }
 

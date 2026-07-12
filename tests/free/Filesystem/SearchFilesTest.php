@@ -20,6 +20,7 @@ class SearchFilesTest extends \WP_UnitTestCase
     {
         @unlink(ABSPATH . $this->rel_dir . '/a.php');
         @unlink(ABSPATH . $this->rel_dir . '/b.txt');
+        @unlink(ABSPATH . $this->rel_dir . '/leak.txt');
         @rmdir(ABSPATH . $this->rel_dir);
         parent::tearDown();
     }
@@ -54,5 +55,35 @@ class SearchFilesTest extends \WP_UnitTestCase
         $this->assertNotContains($this->rel_dir . '/c.txt', $files);
 
         @unlink(ABSPATH . $this->rel_dir . '/c.txt');
+    }
+
+    /**
+     * Escape 2 (CRITICAL): an in-tree symlink pointing outside the root
+     * must not be followed during traversal. RecursiveIteratorIterator
+     * previously treated the symlink as a regular file and
+     * file_get_contents() read through it, returning outside content in
+     * the search results.
+     */
+    public function test_does_not_read_through_an_in_tree_symlink_to_outside_content(): void
+    {
+        $outside = sys_get_temp_dir() . '/wpmcp-escape2-' . uniqid() . '.txt';
+        file_put_contents($outside, "top-secret-needle\n");
+
+        $link = ABSPATH . $this->rel_dir . '/leak.txt';
+        if (! @symlink($outside, $link)) {
+            @unlink($outside);
+            $this->markTestSkipped('symlink() unavailable in this environment');
+        }
+
+        try {
+            $result = (new Search_Files())->handle(['query' => 'top-secret-needle', 'path' => $this->rel_dir]);
+
+            $files = array_column($result['matches'], 'file');
+            $this->assertNotContains($this->rel_dir . '/leak.txt', $files);
+            $this->assertCount(0, $result['matches']);
+        } finally {
+            @unlink($link);
+            @unlink($outside);
+        }
     }
 }
