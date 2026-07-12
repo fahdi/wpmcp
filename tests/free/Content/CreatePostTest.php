@@ -1,0 +1,27 @@
+<?php
+
+namespace WPMCP\Tests\Free\Content;
+
+use WPMCP\Tools\Content\Create_Post;
+
+class CreatePostTest extends \WP_UnitTestCase
+{
+    public function test_creates_post_and_returns_id_and_permalink(): void
+    {
+        $out = (new Create_Post())->handle([
+            'post_type' => 'post',
+            'title'     => 'Hello',
+            'content'   => '<p>Hi</p>',
+            'status'    => 'draft',
+        ]);
+
+        $this->assertArrayHasKey('post_id', $out);
+        $this->assertArrayHasKey('permalink', $out);
+
+        $post = get_post($out['post_id']);
+        $this->assertNotNull($post);
+        $this->assertSame('Hello', $post->post_title);
+        $this->assertSame('<p>Hi</p>', $post->post_content);
+        $this->assertSame('draft', $post->post_status);
+    }
+}
