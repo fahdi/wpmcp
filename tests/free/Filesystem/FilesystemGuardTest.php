@@ -102,4 +102,10 @@ class FilesystemGuardTest extends \WP_UnitTestCase
         $name = Filesystem_Guard::backup_name('wp-content/themes/x/style.css', '20260627-120000');
         $this->assertSame('20260627-120000-wp-content-themes-x-style.css', $name);
     }
+
+    public function test_is_utf8_detects_text_vs_binary(): void
+    {
+        $this->assertTrue(Filesystem_Guard::is_utf8("plain text\nok"));
+        $this->assertFalse(Filesystem_Guard::is_utf8("\xff\xfe\x00\x01binary"));
+    }
 }

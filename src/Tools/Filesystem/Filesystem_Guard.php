@@ -86,4 +86,18 @@ class Filesystem_Guard
         $flat = preg_replace('/[^A-Za-z0-9._-]/', '-', $flat);
         return $timestamp . '-' . $flat;
     }
+
+    /**
+     * Pure: is $content valid UTF-8 text (vs binary)?
+     */
+    public static function is_utf8(string $content): bool
+    {
+        if ('' === $content) {
+            return true;
+        }
+        if (false !== strpos($content, "\0")) {
+            return false;
+        }
+        return (bool) preg_match('//u', $content);
+    }
 }
