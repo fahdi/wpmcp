@@ -4,6 +4,8 @@
 
 namespace WPMCP;
 
+use WPMCP\Admin\History_Page;
+use WPMCP\Admin\Restore_Controller;
 use WPMCP\MCP\Ability;
 use WPMCP\MCP\Registrar;
 use WPMCP\Tools\Get_Page;
@@ -34,7 +36,20 @@ final class Plugin
         if (function_exists('add_action')) {
             $hook = function_exists('wp_register_ability') ? 'wp_abilities_api_init' : 'init';
             add_action($hook, [$this, 'register_abilities']);
+            add_action('admin_menu', [$this, 'register_admin_menu']);
+            add_action('wp_ajax_wpmcp_restore', [new Restore_Controller(), 'handle']);
         }
+    }
+
+    public function register_admin_menu(): void
+    {
+        add_menu_page(
+            'wpmcp',
+            'wpmcp',
+            'edit_posts',
+            'wpmcp',
+            [new History_Page(), 'render']
+        );
     }
 
     public function register_abilities(): void
