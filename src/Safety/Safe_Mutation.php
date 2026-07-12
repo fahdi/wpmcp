@@ -27,17 +27,8 @@ class Safe_Mutation
         return ['operation_id' => $operation_id, 'result' => $result];
     }
 
-    /** Temporary; extracted into Rollback_Service in Task 7. */
     public static function restore(array $snapshot): void
     {
-        if ('post' === $snapshot['object_type'] && $snapshot['data']['post']) {
-            wp_update_post(array_merge(['ID' => $snapshot['object_id']], $snapshot['data']['post']));
-        }
-        foreach ($snapshot['data']['meta'] as $key => $values) {
-            delete_post_meta($snapshot['object_id'], $key);
-            foreach ((array) $values as $v) {
-                add_post_meta($snapshot['object_id'], $key, maybe_unserialize($v));
-            }
-        }
+        Rollback_Service::apply_snapshot($snapshot);
     }
 }
