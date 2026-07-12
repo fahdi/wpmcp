@@ -22,6 +22,8 @@ class Registrar
         if (function_exists('wp_register_ability') && doing_action('wp_abilities_api_init')) {
             wp_register_ability($a->name, [
                 'label'               => $a->description,
+                'description'         => $a->description,
+                'category'            => 'wpmcp',
                 'input_schema'        => $a->input_schema,
                 'execute_callback'    => $a->handler,
                 'permission_callback' => fn() => current_user_can('edit_posts'),
