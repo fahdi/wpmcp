@@ -119,6 +119,48 @@ class Rollback_Service
     }
 
     /**
+     * Restore a comment to its pre-mutation state.
+     *
+     * moderate-comment and edit-comment only ever change an existing comment
+     * (status, content, author fields), so in that case the comment still
+     * exists here and is restored in place: the captured row goes back via
+     * wp_update_comment() and the commentmeta is reconciled the same way the
+     * post/user paths reconcile their meta (purge keys the mutation added,
+     * then re-write every captured key/value exactly).
+     */
+    private static function apply_comment_snapshot(array $snapshot): void
+    {
+        $comment_id = (int) $snapshot['object_id'];
+
+        if ($snapshot['data']['comment'] && get_comment($comment_id)) {
+            wp_update_comment($snapshot['data']['comment']);
+        }
+
+        self::reconcile_comment_meta($comment_id, (array) $snapshot['data']['meta']);
+    }
+
+    /**
+     * Reconcile a comment's commentmeta back to the captured map: delete any
+     * key the mutation added, then re-write every captured key/value exactly.
+     * Shared by the in-place restore and the resurrection path.
+     */
+    private static function reconcile_comment_meta(int $comment_id, array $snapshotted_meta): void
+    {
+        $current_meta = get_comment_meta($comment_id);
+
+        foreach (array_keys(array_diff_key($current_meta, $snapshotted_meta)) as $key) {
+            delete_comment_meta($comment_id, $key);
+        }
+
+        foreach ($snapshotted_meta as $key => $values) {
+            delete_comment_meta($comment_id, $key);
+            foreach ((array) $values as $v) {
+                add_comment_meta($comment_id, $key, maybe_unserialize($v));
+            }
+        }
+    }
+
+    /**
      * Columns from a full get_post($id, ARRAY_A) row that are safe to feed
      * back into wp_update_post()/wp_insert_post(). Excluded:
      *  - 'ID' is merged in separately by the caller.
@@ -204,6 +246,11 @@ class Rollback_Service
 
         if ('user' === $snapshot['object_type']) {
             self::apply_user_snapshot($snapshot);
+            return;
+        }
+
+        if ('comment' === $snapshot['object_type']) {
+            self::apply_comment_snapshot($snapshot);
             return;
         }
 

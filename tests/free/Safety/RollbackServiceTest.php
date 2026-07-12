@@ -180,4 +180,43 @@ class RollbackServiceTest extends \WP_UnitTestCase
         Rollback_Service::apply_snapshot($snapshot);
         $this->assertFalse(get_option('wpmcp_test_new_option'));
     }
+
+    public function test_apply_snapshot_restores_comment_status_and_content_in_place(): void
+    {
+        $post_id    = self::factory()->post->create();
+        $comment_id = self::factory()->comment->create([
+            'comment_post_ID'  => $post_id,
+            'comment_content'  => 'Original body',
+            'comment_approved' => '1',
+        ]);
+
+        $snapshot = Snapshot::capture('comment', $comment_id);
+
+        wp_update_comment(['comment_ID' => $comment_id, 'comment_content' => 'Edited body']);
+        wp_set_comment_status($comment_id, 'spam');
+        $this->assertSame('Edited body', get_comment($comment_id)->comment_content);
+        $this->assertSame('spam', wp_get_comment_status($comment_id));
+
+        Rollback_Service::apply_snapshot($snapshot);
+
+        $restored = get_comment($comment_id);
+        $this->assertSame('Original body', $restored->comment_content);
+        $this->assertSame('1', $restored->comment_approved);
+    }
+
+    public function test_apply_snapshot_purges_comment_meta_added_by_mutation(): void
+    {
+        $post_id    = self::factory()->post->create();
+        $comment_id = self::factory()->comment->create(['comment_post_ID' => $post_id]);
+
+        $snapshot = Snapshot::capture('comment', $comment_id);
+
+        add_comment_meta($comment_id, 'brand_new_key', 'brand_new_value');
+        $this->assertSame('brand_new_value', get_comment_meta($comment_id, 'brand_new_key', true));
+
+        Rollback_Service::apply_snapshot($snapshot);
+
+        $this->assertSame('', get_comment_meta($comment_id, 'brand_new_key', true));
+        $this->assertArrayNotHasKey('brand_new_key', get_comment_meta($comment_id));
+    }
 }
