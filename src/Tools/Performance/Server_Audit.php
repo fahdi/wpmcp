@@ -8,7 +8,9 @@ if (! defined('ABSPATH')) {
 
 class Server_Audit
 {
-    private const MIN_MEMORY_BYTES = 134217728; // 128 MB
+    private const MIN_MEMORY_BYTES     = 134217728; // 128 MB
+    private const PLUGIN_WARN_COUNT    = 40;
+    private const REVISIONS_WARN_COUNT = 1000;
 
     public function evaluate_php_version(string $version): array
     {
@@ -148,6 +150,38 @@ class Server_Audit
             true,
             sprintf('WP_DEBUG is on (environment: %s).', $environment)
         );
+    }
+
+    public function evaluate_plugin_count(int $count): array
+    {
+        if ($count > self::PLUGIN_WARN_COUNT) {
+            return Finding::make(
+                'plugin_count',
+                'config',
+                'Active plugins',
+                'warning',
+                $count,
+                sprintf('%d active plugins.', $count),
+                'A large plugin count compounds per-request overhead. Audit for unused or overlapping plugins.'
+            );
+        }
+        return Finding::make('plugin_count', 'config', 'Active plugins', 'info', $count, sprintf('%d active plugins.', $count));
+    }
+
+    public function evaluate_revisions(int $count): array
+    {
+        if ($count > self::REVISIONS_WARN_COUNT) {
+            return Finding::make(
+                'post_revisions',
+                'database',
+                'Post revisions',
+                'warning',
+                $count,
+                sprintf('%d post revisions stored.', $count),
+                'Cap revisions with define("WP_POST_REVISIONS", 5) and clean old ones to shrink the posts table.'
+            );
+        }
+        return Finding::make('post_revisions', 'database', 'Post revisions', 'info', $count, sprintf('%d post revisions stored.', $count));
     }
 
     private function to_bytes(string $value): int

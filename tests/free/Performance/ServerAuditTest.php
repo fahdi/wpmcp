@@ -56,4 +56,20 @@ class ServerAuditTest extends \WP_UnitTestCase
         $this->assertSame('info', $this->audit->evaluate_wp_debug(true, 'local')['status']);
         $this->assertSame('pass', $this->audit->evaluate_wp_debug(false, 'production')['status']);
     }
+
+    public function test_plugin_count_warns_above_forty(): void
+    {
+        $this->assertSame('info', $this->audit->evaluate_plugin_count(12)['status']);
+        $this->assertSame('info', $this->audit->evaluate_plugin_count(40)['status']);
+        $this->assertSame('warning', $this->audit->evaluate_plugin_count(41)['status']);
+        $this->assertSame('warning', $this->audit->evaluate_plugin_count(55)['status']);
+    }
+
+    public function test_revisions_warns_above_a_thousand(): void
+    {
+        $this->assertSame('info', $this->audit->evaluate_revisions(40)['status']);
+        $this->assertSame('info', $this->audit->evaluate_revisions(1000)['status']);
+        $this->assertSame('warning', $this->audit->evaluate_revisions(1001)['status']);
+        $this->assertSame('warning', $this->audit->evaluate_revisions(5000)['status']);
+    }
 }
