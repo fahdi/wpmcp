@@ -2,6 +2,8 @@
 
 namespace WPMCP\Safety;
 
+use WPMCP\Pro\Gate;
+
 if (! defined('ABSPATH')) {
     exit;
 }
@@ -19,6 +21,7 @@ class Safe_Mutation
             $context['tool_name'],
             hash('sha256', wp_json_encode($context['args'] ?? []))
         );
+        Snapshot_Store::prune(Gate::history_limit());
         $result = $mutation();
         if ($verify && ! $verify($result)) {
             self::restore($snapshot);

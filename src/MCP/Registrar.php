@@ -2,6 +2,8 @@
 
 namespace WPMCP\MCP;
 
+use WPMCP\Pro\Gate;
+
 if (! defined('ABSPATH')) {
     exit;
 }
@@ -13,6 +15,9 @@ class Registrar
 
     public function register(Ability $a): void
     {
+        if ('pro' === $a->tier && ! Gate::is_pro()) {
+            return;
+        }
         $this->abilities[ $a->name ] = $a;
         if (function_exists('wp_register_ability') && doing_action('wp_abilities_api_init')) {
             wp_register_ability($a->name, [
