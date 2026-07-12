@@ -14,6 +14,18 @@ class Page_Audit
     private const HTML_WARN_BYTES    = 512000; // 500 KB of HTML.
     private const RENDER_BLOCK_WARN  = 5;
 
+    /** @var callable(string):string[] Resolves a hostname to a list of IPs. */
+    private $resolver;
+
+    /**
+     * @param null|callable(string):string[] $resolver Test seam for the DNS
+     *        resolution step. Defaults to real A/AAAA lookups in production.
+     */
+    public function __construct(?callable $resolver = null)
+    {
+        $this->resolver = $resolver ?? [$this, 'resolve_hostname'];
+    }
+
     /**
      * Perform the HTTP fetch and normalize the response. SSRF-safe: the
      * target host must resolve to a public IP (no loopback, private, link-
@@ -80,7 +92,7 @@ class Page_Audit
     {
         $host = trim($host, '[]');
 
-        $candidates = filter_var($host, FILTER_VALIDATE_IP) ? [$host] : $this->resolve_hostname($host);
+        $candidates = filter_var($host, FILTER_VALIDATE_IP) ? [$host] : ($this->resolver)($host);
         if (empty($candidates)) {
             // Unresolvable host: refuse rather than let it slip through.
             return true;
@@ -91,9 +103,37 @@ class Page_Audit
             if (false === $public) {
                 return true;
             }
+
+            // An IPv4-mapped IPv6 address (::ffff:127.0.0.1, ::ffff:7f00:1)
+            // can slip past the naked filter on some PHP builds, so re-check
+            // the embedded IPv4 against the same private/reserved ranges.
+            $embedded = $this->mapped_ipv4($ip);
+            if (null !== $embedded && false === filter_var($embedded, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
+                return true;
+            }
         }
 
         return false;
+    }
+
+    /**
+     * Extract the embedded IPv4 from an IPv4-mapped IPv6 address (the
+     * ::ffff:0:0/96 range), covering both dotted (::ffff:127.0.0.1) and hex
+     * (::ffff:7f00:1) forms. Returns null when $ip is not IPv4-mapped.
+     */
+    private function mapped_ipv4(string $ip): ?string
+    {
+        $packed = @inet_pton($ip);
+        if (false === $packed || 16 !== strlen($packed)) {
+            return null;
+        }
+
+        // First 10 bytes zero, bytes 11-12 == 0xffff marks ::ffff:0:0/96.
+        if ("\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xff\xff" !== substr($packed, 0, 12)) {
+            return null;
+        }
+
+        return inet_ntop(substr($packed, 12, 4)) ?: null;
     }
 
     /**

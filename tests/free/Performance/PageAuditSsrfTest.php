@@ -117,6 +117,47 @@ class PageAuditSsrfTest extends \WP_UnitTestCase
         $this->assertSame('warning', $redirect['status']);
     }
 
+    public function test_fetch_refuses_an_ipv4_mapped_ipv6_loopback_resolved_for_the_host(): void
+    {
+        // The host resolves (via the injected seam) to an IPv4-mapped IPv6
+        // loopback. The naked FILTER_FLAG_NO_PRIV_RANGE|NO_RES_RANGE check
+        // does not catch ::ffff:127.0.0.1, so the guard must normalize the
+        // embedded IPv4 and reject it.
+        $audit = new Page_Audit(static fn (string $host): array => ['::ffff:127.0.0.1']);
+
+        $result = $audit->fetch('http://mapped-loopback.test/');
+
+        $this->assertFalse($this->http_request_fired, 'fetch() must refuse before dispatching HTTP');
+        $this->assertFalse($result['ok']);
+        $this->assertSame('refused_private_target', $result['error']);
+    }
+
+    /**
+     * Prove the embedded-IPv4 normalization is load-bearing, independent of
+     * whatever the platform filter_var() happens to do with mapped forms: the
+     * private resolution seam feeds a hex-form mapped loopback and the guard
+     * must reject it.
+     */
+    public function test_resolves_to_private_ip_rejects_hex_form_mapped_loopback(): void
+    {
+        $audit  = new Page_Audit(static fn (string $host): array => ['::ffff:7f00:1']);
+        $method = new \ReflectionMethod($audit, 'resolves_to_private_ip');
+
+        $this->assertTrue($method->invoke($audit, 'mapped-loopback.test'));
+    }
+
+    public function test_mapped_ipv4_extracts_embedded_address_and_ignores_plain_ipv6(): void
+    {
+        $audit  = new Page_Audit();
+        $method = new \ReflectionMethod($audit, 'mapped_ipv4');
+
+        $this->assertSame('127.0.0.1', $method->invoke($audit, '::ffff:127.0.0.1'));
+        $this->assertSame('127.0.0.1', $method->invoke($audit, '::ffff:7f00:1'));
+        $this->assertSame('192.168.1.1', $method->invoke($audit, '::ffff:192.168.1.1'));
+        $this->assertNull($method->invoke($audit, '2606:2800:220:1:248:1893:25c8:1946'));
+        $this->assertNull($method->invoke($audit, '93.184.216.34'));
+    }
+
     public function serve_redirect($preempt, $parsed_args, $url)
     {
         $this->http_request_count++;
