@@ -42,6 +42,12 @@ use WPMCP\Tools\Packages\Switch_Theme;
 use WPMCP\Tools\Packages\Install_Theme;
 use WPMCP\Tools\Packages\Update_Theme;
 use WPMCP\Tools\Packages\Delete_Theme;
+use WPMCP\Tools\Database\List_Tables;
+use WPMCP\Tools\Database\Describe_Table;
+use WPMCP\Tools\Database\Query;
+use WPMCP\Tools\Database\Insert_Row;
+use WPMCP\Tools\Database\Update_Rows;
+use WPMCP\Tools\Database\Delete_Rows;
 
 if (! defined('ABSPATH') && ! defined('WPMCP_TESTING')) {
     exit;
@@ -659,6 +665,101 @@ final class Plugin
             ],
             [$delete_theme, 'handle'],
             'delete_themes'
+        ));
+
+        $list_tables    = new List_Tables();
+        $describe_table = new Describe_Table();
+        $query          = new Query();
+        $insert_row     = new Insert_Row();
+        $update_rows    = new Update_Rows();
+        $delete_rows    = new Delete_Rows();
+
+        $registrar->register(new Ability(
+            'wpmcp/list-tables',
+            'free',
+            'List database tables with estimated row counts and sizes',
+            [
+                'type'       => 'object',
+                'properties' => [],
+            ],
+            [$list_tables, 'handle'],
+            'manage_options'
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/describe-table',
+            'free',
+            'Return the columns, types, and keys of a database table',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'table' => [ 'type' => 'string' ],
+                ],
+                'required'   => [ 'table' ],
+            ],
+            [$describe_table, 'handle'],
+            'manage_options'
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/query',
+            'free',
+            'Run a read-only SQL query (SELECT/SHOW/DESCRIBE/EXPLAIN/WITH). Writes, DDL, stacked statements, and file-access SQL are rejected before execution. Results are capped',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'sql'   => [ 'type' => 'string' ],
+                    'limit' => [ 'type' => 'integer' ],
+                ],
+                'required'   => [ 'sql' ],
+            ],
+            [$query, 'handle'],
+            'manage_options'
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/insert-row',
+            'free',
+            'Insert a row into a table via $wpdb->insert() (parameterized). Refuses protected tables. Disabled by default (wpmcp_enable_db_writes filter)',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'table' => [ 'type' => 'string' ],
+                    'data'  => [ 'type' => 'object' ],
+                ],
+                'required'   => [ 'table', 'data' ],
+            ],
+            [$insert_row, 'handle'],
+            'manage_options'
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/update-rows',
+            'free',
+            'Update rows matching a mandatory equality WHERE via $wpdb->update() (parameterized). Refuses protected tables. Disabled by default (wpmcp_enable_db_writes filter). Captures a before-image to the write audit log and honestly reports recoverable:false (no generic-table rollback)',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'table' => [ 'type' => 'string' ],
+                    'data'  => [ 'type' => 'object' ],
+                    'where' => [ 'type' => 'object' ],
+                ],
+                'required'   => [ 'table', 'data', 'where' ],
+            ],
+            [$update_rows, 'handle'],
+            'manage_options'
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/delete-rows',
+            'free',
+            'Delete rows matching a mandatory equality WHERE via $wpdb->delete() (parameterized). Requires confirm:true. Refuses protected tables. Disabled by default (wpmcp_enable_db_writes filter). Captures a before-image to the write audit log and honestly reports recoverable:false (no generic-table rollback)',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'table'   => [ 'type' => 'string' ],
+                    'where'   => [ 'type' => 'object' ],
+                    'confirm' => [ 'type' => 'boolean' ],
+                ],
+                'required'   => [ 'table', 'where' ],
+            ],
+            [$delete_rows, 'handle'],
+            'manage_options'
         ));
     }
 }
