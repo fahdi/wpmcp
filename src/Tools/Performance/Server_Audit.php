@@ -71,6 +71,36 @@ class Server_Audit
         );
     }
 
+    public function evaluate_opcache(bool $enabled): array
+    {
+        return $enabled
+            ? Finding::make('opcache', 'server', 'PHP OPcache', 'pass', true, 'OPcache is enabled.')
+            : Finding::make(
+                'opcache',
+                'server',
+                'PHP OPcache',
+                'warning',
+                false,
+                'OPcache is disabled.',
+                'Enable the Zend OPcache extension, it caches compiled PHP and dramatically reduces request time.'
+            );
+    }
+
+    public function evaluate_object_cache(bool $persistent): array
+    {
+        return $persistent
+            ? Finding::make('object_cache', 'server', 'Persistent object cache', 'pass', true, 'A persistent object cache is active.')
+            : Finding::make(
+                'object_cache',
+                'server',
+                'Persistent object cache',
+                'warning',
+                false,
+                'No persistent object cache detected.',
+                'Add Redis or Memcached with a drop-in (for example redis-cache) to cache DB queries across requests.'
+            );
+    }
+
     private function to_bytes(string $value): int
     {
         $value = trim($value);

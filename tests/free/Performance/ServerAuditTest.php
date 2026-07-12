@@ -29,4 +29,16 @@ class ServerAuditTest extends \WP_UnitTestCase
         $this->assertSame('warning', $this->audit->evaluate_memory_limit('64M')['status']);
         $this->assertSame('pass', $this->audit->evaluate_memory_limit('-1')['status']);
     }
+
+    public function test_opcache_pass_when_enabled_warning_when_disabled(): void
+    {
+        $this->assertSame('pass', $this->audit->evaluate_opcache(true)['status']);
+        $this->assertSame('warning', $this->audit->evaluate_opcache(false)['status']);
+    }
+
+    public function test_object_cache_pass_when_persistent_warning_when_not(): void
+    {
+        $this->assertSame('pass', $this->audit->evaluate_object_cache(true)['status']);
+        $this->assertSame('warning', $this->audit->evaluate_object_cache(false)['status']);
+    }
 }
