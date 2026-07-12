@@ -39,6 +39,12 @@ class Filesystem_Guard
             $root_real = $root;
         }
 
+        $real_n = rtrim($real, '/\\');
+        $root_n = rtrim($root_real, '/\\');
+        if ($real_n !== $root_n && 0 !== strpos($real_n, $root_n . DIRECTORY_SEPARATOR)) {
+            return new \WP_Error('outside_root', 'Path is outside the WordPress installation.');
+        }
+
         return $real;
     }
 }

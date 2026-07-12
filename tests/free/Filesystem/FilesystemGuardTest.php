@@ -37,4 +37,11 @@ class FilesystemGuardTest extends \WP_UnitTestCase
         $out = Filesystem_Guard::resolve_path('wp-content/themes/x/style.css', $this->root);
         $this->assertSame(realpath($this->root . '/wp-content/themes/x/style.css'), $out);
     }
+
+    public function test_rejects_parent_traversal(): void
+    {
+        $out = Filesystem_Guard::resolve_path('wp-content/../../wpmcp-outside.txt', $this->root);
+        $this->assertInstanceOf(\WP_Error::class, $out);
+        $this->assertSame('outside_root', $out->get_error_code());
+    }
 }
