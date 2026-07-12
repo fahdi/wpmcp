@@ -36,4 +36,26 @@ class Widget_View
     {
         return 0 === strpos(get_class($widget), 'ElementorPro\\') ? 'pro' : 'free';
     }
+
+    /**
+     * Curate a widget's control stack down to name, type, label, default, and
+     * section grouping, keyed by control name.
+     *
+     * @return array<string, array{type: mixed, label: mixed, default: mixed, section: mixed}>
+     */
+    public static function controls(\Elementor\Widget_Base $widget): array
+    {
+        $controls = [];
+
+        foreach ($widget->get_controls() as $name => $control) {
+            $controls[ $name ] = [
+                'type'    => $control['type'] ?? null,
+                'label'   => $control['label'] ?? null,
+                'default' => $control['default'] ?? null,
+                'section' => $control['section'] ?? null,
+            ];
+        }
+
+        return $controls;
+    }
 }
