@@ -3,7 +3,7 @@
 namespace WPMCP\Tests\Tools;
 
 use WPMCP\Tools\Update_Blocks;
-use WPMCP\Safety\{Snapshot_Store, Snapshot_Store as S};
+use WPMCP\Safety\{Snapshot_Store, Snapshot_Store as S, Mutation_Failed};
 
 class UpdateBlocksTest extends \WP_UnitTestCase
 {
@@ -21,5 +21,17 @@ class UpdateBlocksTest extends \WP_UnitTestCase
         $this->assertArrayHasKey('operation_id', $out);
         $this->assertSame($blocks, get_post($id)->post_content);
         $this->assertNotNull(S::get_by_operation($out['operation_id']));
+    }
+
+    public function test_invalid_markup_rolls_back(): void
+    {
+        $original = '<!-- wp:paragraph --><p>ORIGINAL</p><!-- /wp:paragraph -->';
+        $id       = self::factory()->post->create(['post_type' => 'page', 'post_content' => $original]);
+        $this->expectException(Mutation_Failed::class);
+        try {
+            (new Update_Blocks())->handle(['id' => $id, 'blocks' => 'not a block at all', 'session_id' => 's1']);
+        } finally {
+            $this->assertSame($original, get_post($id)->post_content);
+        }
     }
 }
