@@ -34,4 +34,12 @@ class GateTest extends \WP_UnitTestCase
         $this->assertTrue(Gate::is_pro());
         $this->assertGreaterThan(1000000, Gate::history_limit());
     }
+
+    public function test_is_pro_falls_back_safely_without_freemius_sdk(): void
+    {
+        // No override set (real default path): with the SDK absent, wpmcp_fs()
+        // does not exist, so is_pro() must short-circuit to false, not fatal.
+        $this->assertFalse(function_exists('wpmcp_fs'));
+        $this->assertFalse(Gate::is_pro());
+    }
 }
