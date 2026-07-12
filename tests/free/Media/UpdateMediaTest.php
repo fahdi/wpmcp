@@ -84,4 +84,23 @@ class UpdateMediaTest extends \WP_UnitTestCase
         $this->assertSame('Sunset', get_post($id)->post_title);
         $this->assertSame($original_metadata, get_post_meta($id, '_wp_attachment_metadata', true));
     }
+
+    public function test_updates_caption_and_description(): void
+    {
+        $id = self::factory()->attachment->create_object([
+            'post_excerpt' => 'old caption',
+            'post_content' => 'old description',
+        ]);
+
+        $out = (new Update_Media())->handle([
+            'media_id'    => $id,
+            'caption'     => 'new caption',
+            'description' => 'new description',
+        ]);
+
+        $this->assertContains('caption', $out['updated']);
+        $this->assertContains('description', $out['updated']);
+        $this->assertSame('new caption', get_post($id)->post_excerpt);
+        $this->assertSame('new description', get_post($id)->post_content);
+    }
 }

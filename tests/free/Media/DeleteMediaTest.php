@@ -47,6 +47,30 @@ class DeleteMediaTest extends \WP_UnitTestCase
         (new Delete_Media())->handle(['media_id' => 999999, 'confirm' => true]);
     }
 
+    /**
+     * WordPress bypasses Trash for attachments unless MEDIA_TRASH is
+     * defined truthy, which the default test environment does not define.
+     * So without force:true this is still a real permanent delete, and it
+     * must be safe-wrapped (snapshotted + rollback-able) rather than
+     * silently unrecoverable, unlike Delete_Post's trash path which is
+     * genuinely reversible via WordPress's own trash.
+     */
+    public function test_default_delete_without_media_trash_constant_is_permanent_and_safe_wrapped(): void
+    {
+        add_filter('wpmcp_enable_delete_media', '__return_true');
+        $id = self::factory()->attachment->create_object(['post_title' => 'Sunset']);
+
+        $out = (new Delete_Media())->handle(['media_id' => $id, 'confirm' => true, 'session_id' => 's1']);
+
+        $this->assertSame('deleted', $out['deleted']);
+        $this->assertArrayHasKey('operation_id', $out);
+        $this->assertNull(get_post($id));
+        $this->assertNotNull(Snapshot_Store::get_by_operation($out['operation_id']));
+
+        $this->assertTrue(Rollback_Service::restore_operation($out['operation_id']));
+        $this->assertNotNull(get_post($id));
+    }
+
     public function test_force_delete_is_safe_wrapped_and_rollback_resurrects_attachment(): void
     {
         add_filter('wpmcp_enable_delete_media', '__return_true');

@@ -40,7 +40,17 @@ class Delete_Media
 
         $force = ! empty($args['force']);
 
-        if (! $force) {
+        // WordPress only trashes attachments (reversible via its own trash,
+        // like Delete_Post's default path) when MEDIA_TRASH is defined
+        // truthy AND force wasn't requested. Most sites never define that
+        // constant, so without it this "default" delete is a real permanent
+        // delete, not a reversible trash. Snapshot it via Safe_Mutation
+        // whenever it isn't genuinely covered by WordPress's own trash;
+        // only skip the snapshot when native trash already makes it
+        // reversible for free.
+        $covered_by_native_trash = ! $force && defined('MEDIA_TRASH') && MEDIA_TRASH;
+
+        if ($covered_by_native_trash) {
             wp_delete_attachment($media_id, false);
             return ['media_id' => $media_id, 'deleted' => 'trashed'];
         }
@@ -53,8 +63,8 @@ class Delete_Media
                 'tool_name'   => 'delete-media',
                 'args'        => $args,
             ],
-            function () use ($media_id) {
-                wp_delete_attachment($media_id, true);
+            function () use ($media_id, $force) {
+                wp_delete_attachment($media_id, $force);
                 return true;
             }
         );
