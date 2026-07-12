@@ -13,7 +13,7 @@ class Safe_Mutation
     public static function run(array $context, callable $mutation, ?callable $verify = null): array
     {
         $operation_id = wp_generate_uuid4();
-        $snapshot     = Snapshot::capture($context['object_type'], (int) $context['object_id']);
+        $snapshot     = Snapshot::capture($context['object_type'], $context['object_id']);
         Snapshot_Store::save(
             $operation_id,
             $context['session_id'],

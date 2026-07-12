@@ -41,6 +41,20 @@ class Snapshot_Store
         ) {$charset};");
     }
 
+    /**
+     * The object_id column is a BIGINT UNSIGNED, so it can only ever store a
+     * numeric post/user/etc ID. Object types identified by a string (e.g.
+     * 'option', keyed by option name) have no numeric ID to put there; the
+     * real identifier already lives inside the serialized snapshot blob
+     * (data.name), so the column is simply 0 for those rows. Existing
+     * consumers (List_Operations, History_Page) already (int)-cast this
+     * column for display, so this is backward compatible.
+     */
+    private static function db_object_id(array $snapshot): int
+    {
+        return is_int($snapshot['object_id']) ? $snapshot['object_id'] : 0;
+    }
+
     public static function save(string $operation_id, string $session_id, array $snapshot, string $tool_name, string $args_hash): int
     {
         global $wpdb;
@@ -48,7 +62,7 @@ class Snapshot_Store
             'operation_id' => $operation_id,
             'session_id'   => $session_id,
             'object_type'  => $snapshot['object_type'],
-            'object_id'    => $snapshot['object_id'],
+            'object_id'    => self::db_object_id($snapshot),
             'tool_name'    => $tool_name,
             'args_hash'    => $args_hash,
             'before_blob'  => Snapshot::serialize($snapshot),
