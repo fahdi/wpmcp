@@ -1,5 +1,5 @@
 <?php
-namespace WPMCP\Tests;
+namespace WPMCP\Tests\Free;
 use WPMCP\Plugin;
 use PHPUnit\Framework\TestCase;
 

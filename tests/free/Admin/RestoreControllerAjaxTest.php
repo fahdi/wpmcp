@@ -1,6 +1,6 @@
 <?php
 
-namespace WPMCP\Tests\Admin;
+namespace WPMCP\Tests\Free\Admin;
 
 use WPMCP\Tools\Update_Blocks;
 use WPMCP\Safety\Snapshot_Store;

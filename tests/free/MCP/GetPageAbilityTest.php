@@ -1,5 +1,5 @@
 <?php
-namespace WPMCP\Tests\MCP;
+namespace WPMCP\Tests\Free\MCP;
 use WPMCP\MCP\{Registrar, Ability};
 use WPMCP\Tools\Get_Page;
 class GetPageAbilityTest extends \WP_UnitTestCase {

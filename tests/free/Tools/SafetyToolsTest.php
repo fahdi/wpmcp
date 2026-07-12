@@ -1,6 +1,6 @@
 <?php
 
-namespace WPMCP\Tests\Tools;
+namespace WPMCP\Tests\Free\Tools;
 
 use WPMCP\Tools\{List_Operations, Rollback_Operation, Update_Blocks};
 use WPMCP\Safety\Snapshot_Store;

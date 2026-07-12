@@ -1,6 +1,6 @@
 <?php
 
-namespace WPMCP\Tests;
+namespace WPMCP\Tests\Free;
 
 class HarnessSmokeTest extends \WP_UnitTestCase {
     public function test_wordpress_is_loaded(): void {

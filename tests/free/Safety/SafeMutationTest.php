@@ -1,6 +1,6 @@
 <?php
 
-namespace WPMCP\Tests\Safety;
+namespace WPMCP\Tests\Free\Safety;
 
 use WPMCP\Safety\{Safe_Mutation, Snapshot_Store, Mutation_Failed};
 

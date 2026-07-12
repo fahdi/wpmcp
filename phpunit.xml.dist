@@ -1,7 +1,8 @@
 <?xml version="1.0"?>
 <phpunit bootstrap="tests/bootstrap.php" colors="true">
   <testsuites>
-    <testsuite name="wpmcp"><directory>tests</directory></testsuite>
+    <testsuite name="free"><directory>tests/free</directory></testsuite>
+    <testsuite name="pro"><directory>tests/pro</directory></testsuite>
   </testsuites>
   <php>
     <const name="WPMCP_TESTING" value="true"/>

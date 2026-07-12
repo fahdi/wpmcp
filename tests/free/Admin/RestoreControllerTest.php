@@ -1,6 +1,6 @@
 <?php
 
-namespace WPMCP\Tests\Admin;
+namespace WPMCP\Tests\Free\Admin;
 
 use WPMCP\Admin\Restore_Controller;
 use WPMCP\Tools\Update_Blocks;
