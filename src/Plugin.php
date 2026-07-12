@@ -7,6 +7,7 @@ namespace WPMCP;
 use WPMCP\MCP\Ability;
 use WPMCP\MCP\Registrar;
 use WPMCP\Tools\Get_Page;
+use WPMCP\Tools\Update_Blocks;
 
 if (! defined('ABSPATH') && ! defined('WPMCP_TESTING')) {
     exit;
@@ -35,8 +36,9 @@ final class Plugin
 
     public function register_abilities(): void
     {
-        $registrar = new Registrar();
-        $get_page  = new Get_Page();
+        $registrar     = new Registrar();
+        $get_page      = new Get_Page();
+        $update_blocks = new Update_Blocks();
         $registrar->register(new Ability(
             'wpmcp/get-page',
             'free',
@@ -49,6 +51,21 @@ final class Plugin
                 'required'   => [ 'id' ],
             ],
             [$get_page, 'handle']
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/update-blocks',
+            'free',
+            'Update a page\'s block content',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'id'         => [ 'type' => 'integer' ],
+                    'blocks'     => [ 'type' => 'string' ],
+                    'session_id' => [ 'type' => 'string' ],
+                ],
+                'required'   => [ 'id', 'blocks' ],
+            ],
+            [$update_blocks, 'handle']
         ));
     }
 }
