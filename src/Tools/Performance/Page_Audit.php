@@ -84,6 +84,20 @@ class Page_Audit
             )
             : Finding::make('html_size', 'page', 'HTML size', 'pass', $bytes, sprintf('The HTML document is %d KB.', (int) round($bytes / 1024)));
 
+        $headers  = (array) ($fetched['headers'] ?? []);
+        $encoding = strtolower((string) ($headers['content-encoding'] ?? ''));
+        $findings[] = (false !== strpos($encoding, 'gzip') || false !== strpos($encoding, 'br'))
+            ? Finding::make('compression', 'page', 'Compression', 'pass', $encoding, sprintf('Response is compressed (%s).', $encoding))
+            : Finding::make(
+                'compression',
+                'page',
+                'Compression',
+                'warning',
+                $encoding ?: 'none',
+                'Response is not gzip/brotli compressed.',
+                'Enable gzip or brotli at the server (or via a cache plugin) to cut transfer size.'
+            );
+
         return ['findings' => $findings, 'page_fetch' => $page_fetch];
     }
 }

@@ -82,4 +82,16 @@ class PageAuditTest extends \WP_UnitTestCase
         $warn = $this->audit->analyze($this->fetched(str_repeat('a', 512001)), false);
         $this->assertSame('warning', $this->status_of($warn, 'html_size'));
     }
+
+    public function test_compression_detected_from_content_encoding_header(): void
+    {
+        $gzip = $this->audit->analyze($this->fetched('<html></html>', ['content-encoding' => 'gzip']), false);
+        $this->assertSame('pass', $this->status_of($gzip, 'compression'));
+
+        $brotli = $this->audit->analyze($this->fetched('<html></html>', ['content-encoding' => 'br']), false);
+        $this->assertSame('pass', $this->status_of($brotli, 'compression'));
+
+        $none = $this->audit->analyze($this->fetched('<html></html>', []), false);
+        $this->assertSame('warning', $this->status_of($none, 'compression'));
+    }
 }
