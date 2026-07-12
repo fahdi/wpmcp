@@ -733,7 +733,9 @@ final class Plugin
                 'properties' => [],
             ],
             [$list_plugins, 'handle'],
-            'activate_plugins'
+            'activate_plugins',
+            'packages',
+            'read'
         ));
         $registrar->register(new Ability(
             'wpmcp/activate-plugin',
@@ -748,7 +750,9 @@ final class Plugin
                 'required'   => [ 'plugin' ],
             ],
             [$activate_plugin, 'handle'],
-            'activate_plugins'
+            'activate_plugins',
+            'packages',
+            'update'
         ));
         $registrar->register(new Ability(
             'wpmcp/deactivate-plugin',
@@ -763,7 +767,9 @@ final class Plugin
                 'required'   => [ 'plugin' ],
             ],
             [$deactivate_plugin, 'handle'],
-            'activate_plugins'
+            'activate_plugins',
+            'packages',
+            'update'
         ));
         $registrar->register(new Ability(
             'wpmcp/install-plugin',
@@ -778,7 +784,9 @@ final class Plugin
                 'required'   => [ 'slug' ],
             ],
             [$install_plugin, 'handle'],
-            'install_plugins'
+            'install_plugins',
+            'packages',
+            'create'
         ));
         $registrar->register(new Ability(
             'wpmcp/update-plugin',
@@ -793,7 +801,12 @@ final class Plugin
                 'required'   => [ 'plugin', 'confirm' ],
             ],
             [$update_plugin, 'handle'],
-            'update_plugins'
+            'update_plugins',
+            'packages',
+            'update',
+            false,
+            true,
+            false
         ));
         $registrar->register(new Ability(
             'wpmcp/delete-plugin',
@@ -808,7 +821,9 @@ final class Plugin
                 'required'   => [ 'plugin', 'confirm' ],
             ],
             [$delete_plugin, 'handle'],
-            'delete_plugins'
+            'delete_plugins',
+            'packages',
+            'delete'
         ));
 
         $registrar->register(new Ability(
@@ -820,7 +835,9 @@ final class Plugin
                 'properties' => [],
             ],
             [$list_themes, 'handle'],
-            'activate_plugins'
+            'activate_plugins',
+            'packages',
+            'read'
         ));
         $registrar->register(new Ability(
             'wpmcp/switch-theme',
@@ -835,7 +852,9 @@ final class Plugin
                 'required'   => [ 'stylesheet' ],
             ],
             [$switch_theme, 'handle'],
-            'switch_themes'
+            'switch_themes',
+            'packages',
+            'update'
         ));
         $registrar->register(new Ability(
             'wpmcp/install-theme',
@@ -850,7 +869,9 @@ final class Plugin
                 'required'   => [ 'slug' ],
             ],
             [$install_theme, 'handle'],
-            'install_themes'
+            'install_themes',
+            'packages',
+            'create'
         ));
         $registrar->register(new Ability(
             'wpmcp/update-theme',
@@ -865,7 +886,12 @@ final class Plugin
                 'required'   => [ 'stylesheet', 'confirm' ],
             ],
             [$update_theme, 'handle'],
-            'update_themes'
+            'update_themes',
+            'packages',
+            'update',
+            false,
+            true,
+            false
         ));
         $registrar->register(new Ability(
             'wpmcp/delete-theme',
@@ -880,7 +906,9 @@ final class Plugin
                 'required'   => [ 'stylesheet', 'confirm' ],
             ],
             [$delete_theme, 'handle'],
-            'delete_themes'
+            'delete_themes',
+            'packages',
+            'delete'
         ));
 
         $list_tables    = new List_Tables();

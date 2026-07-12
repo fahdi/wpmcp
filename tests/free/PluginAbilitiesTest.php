@@ -115,6 +115,32 @@ class PluginAbilitiesTest extends \WP_UnitTestCase
         $this->assertSame('delete', $abilities['wpmcp/delete-comment']->operation);
     }
 
+    public function test_packages_abilities_are_tagged_packages_domain(): void
+    {
+        $abilities = $this->index(Plugin::instance()->registrar()->all());
+
+        $this->assertSame('packages', $abilities['wpmcp/list-plugins']->domain);
+        $this->assertSame('read', $abilities['wpmcp/list-plugins']->operation);
+        $this->assertSame('packages', $abilities['wpmcp/install-plugin']->domain);
+        $this->assertSame('create', $abilities['wpmcp/install-plugin']->operation);
+        $this->assertSame('packages', $abilities['wpmcp/delete-plugin']->domain);
+        $this->assertSame('delete', $abilities['wpmcp/delete-plugin']->operation);
+        $this->assertSame('packages', $abilities['wpmcp/list-themes']->domain);
+        $this->assertSame('read', $abilities['wpmcp/list-themes']->operation);
+        $this->assertSame('packages', $abilities['wpmcp/delete-theme']->domain);
+        $this->assertSame('delete', $abilities['wpmcp/delete-theme']->operation);
+    }
+
+    public function test_update_plugin_and_update_theme_keep_destructive_irreversible_hints(): void
+    {
+        $abilities = $this->index(Plugin::instance()->registrar()->all());
+
+        $this->assertTrue($abilities['wpmcp/update-plugin']->destructive_hint);
+        $this->assertFalse($abilities['wpmcp/update-plugin']->idempotent_hint);
+        $this->assertTrue($abilities['wpmcp/update-theme']->destructive_hint);
+        $this->assertFalse($abilities['wpmcp/update-theme']->idempotent_hint);
+    }
+
     /** @param Ability[] $abilities @return array<string, Ability> */
     private function index(array $abilities): array
     {
