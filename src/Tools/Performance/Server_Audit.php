@@ -101,6 +101,29 @@ class Server_Audit
             );
     }
 
+    public function evaluate_image_lib(bool $imagick, bool $gd): array
+    {
+        if ($imagick || $gd) {
+            return Finding::make(
+                'image_lib',
+                'server',
+                'Image library',
+                'pass',
+                $imagick ? 'imagick' : 'gd',
+                'An image processing library is available.'
+            );
+        }
+        return Finding::make(
+            'image_lib',
+            'server',
+            'Image library',
+            'warning',
+            'none',
+            'No image library (Imagick/GD) detected.',
+            'Install Imagick or GD so WordPress can generate optimized image sizes.'
+        );
+    }
+
     private function to_bytes(string $value): int
     {
         $value = trim($value);

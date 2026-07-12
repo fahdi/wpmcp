@@ -41,4 +41,12 @@ class ServerAuditTest extends \WP_UnitTestCase
         $this->assertSame('pass', $this->audit->evaluate_object_cache(true)['status']);
         $this->assertSame('warning', $this->audit->evaluate_object_cache(false)['status']);
     }
+
+    public function test_image_lib_passes_when_either_library_present(): void
+    {
+        $this->assertSame('pass', $this->audit->evaluate_image_lib(true, false)['status']);
+        $this->assertSame('pass', $this->audit->evaluate_image_lib(false, true)['status']);
+        $this->assertSame('pass', $this->audit->evaluate_image_lib(true, true)['status']);
+        $this->assertSame('warning', $this->audit->evaluate_image_lib(false, false)['status']);
+    }
 }
