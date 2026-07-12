@@ -124,6 +124,32 @@ class Server_Audit
         );
     }
 
+    public function evaluate_wp_debug(bool $on, string $environment): array
+    {
+        if (! $on) {
+            return Finding::make('wp_debug', 'config', 'WP_DEBUG', 'pass', false, 'WP_DEBUG is off.');
+        }
+        if ('production' === $environment) {
+            return Finding::make(
+                'wp_debug',
+                'config',
+                'WP_DEBUG',
+                'warning',
+                true,
+                'WP_DEBUG is ON in production.',
+                'Turn off WP_DEBUG on production, debug logging and notices add overhead and leak information.'
+            );
+        }
+        return Finding::make(
+            'wp_debug',
+            'config',
+            'WP_DEBUG',
+            'info',
+            true,
+            sprintf('WP_DEBUG is on (environment: %s).', $environment)
+        );
+    }
+
     private function to_bytes(string $value): int
     {
         $value = trim($value);

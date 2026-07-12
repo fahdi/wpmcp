@@ -49,4 +49,11 @@ class ServerAuditTest extends \WP_UnitTestCase
         $this->assertSame('pass', $this->audit->evaluate_image_lib(true, true)['status']);
         $this->assertSame('warning', $this->audit->evaluate_image_lib(false, false)['status']);
     }
+
+    public function test_wp_debug_warns_only_in_production(): void
+    {
+        $this->assertSame('warning', $this->audit->evaluate_wp_debug(true, 'production')['status']);
+        $this->assertSame('info', $this->audit->evaluate_wp_debug(true, 'local')['status']);
+        $this->assertSame('pass', $this->audit->evaluate_wp_debug(false, 'production')['status']);
+    }
 }
