@@ -127,16 +127,46 @@ class Rollback_Service
      * wp_update_comment() and the commentmeta is reconciled the same way the
      * post/user paths reconcile their meta (purge keys the mutation added,
      * then re-write every captured key/value exactly).
+     *
+     * delete-comment (force) destroys the row entirely, so wp_update_comment()
+     * would silently no-op. When the comment no longer exists it is resurrected
+     * via wp_insert_comment() instead. WordPress core has NO import_id
+     * equivalent for comments, so the original comment_ID CANNOT be preserved:
+     * the resurrected comment gets a fresh auto-increment ID. Rather than fail
+     * or pretend otherwise, the content, author, status, dates, thread
+     * association and commentmeta are restored honestly under the new ID.
      */
     private static function apply_comment_snapshot(array $snapshot): void
     {
-        $comment_id = (int) $snapshot['object_id'];
-
-        if ($snapshot['data']['comment'] && get_comment($comment_id)) {
-            wp_update_comment($snapshot['data']['comment']);
+        if (! $snapshot['data']['comment']) {
+            return;
         }
 
-        self::reconcile_comment_meta($comment_id, (array) $snapshot['data']['meta']);
+        $comment_id = (int) $snapshot['object_id'];
+
+        if (get_comment($comment_id)) {
+            wp_update_comment($snapshot['data']['comment']);
+            self::reconcile_comment_meta($comment_id, (array) $snapshot['data']['meta']);
+            return;
+        }
+
+        self::resurrect_comment($snapshot['data']['comment'], (array) $snapshot['data']['meta']);
+    }
+
+    /**
+     * Re-insert a force-deleted comment. The original comment_ID cannot be
+     * reused (no import_id for comments in WordPress core), so it is dropped
+     * and WordPress assigns a new one; every other captured field, plus the
+     * commentmeta, is restored under that new ID.
+     */
+    private static function resurrect_comment(array $comment_row, array $meta): void
+    {
+        unset($comment_row['comment_ID']);
+        $new_comment_id = wp_insert_comment($comment_row);
+        if (! $new_comment_id) {
+            throw new Mutation_Failed('Rollback failed to resurrect a force-deleted comment.');
+        }
+        self::reconcile_comment_meta((int) $new_comment_id, $meta);
     }
 
     /**

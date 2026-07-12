@@ -204,6 +204,39 @@ class RollbackServiceTest extends \WP_UnitTestCase
         $this->assertSame('1', $restored->comment_approved);
     }
 
+    public function test_apply_snapshot_resurrects_force_deleted_comment(): void
+    {
+        $post_id    = self::factory()->post->create();
+        $comment_id = self::factory()->comment->create([
+            'comment_post_ID'      => $post_id,
+            'comment_content'      => 'Please do not lose me',
+            'comment_approved'     => '1',
+            'comment_author'       => 'Grace',
+            'comment_author_email' => 'grace@example.com',
+        ]);
+        add_comment_meta($comment_id, 'rating', '5');
+
+        $snapshot = Snapshot::capture('comment', $comment_id);
+
+        wp_delete_comment($comment_id, true);
+        $this->assertNull(get_comment($comment_id));
+
+        Rollback_Service::apply_snapshot($snapshot);
+
+        // The comment must be back on the same post with its content, author
+        // and status intact, even if WordPress assigned it a new comment ID.
+        $matches = get_comments([
+            'post_id' => $post_id,
+            'status'  => 'approve',
+        ]);
+        $this->assertCount(1, $matches);
+        $restored = $matches[0];
+        $this->assertSame('Please do not lose me', $restored->comment_content);
+        $this->assertSame('Grace', $restored->comment_author);
+        $this->assertSame('grace@example.com', $restored->comment_author_email);
+        $this->assertSame('5', get_comment_meta((int) $restored->comment_ID, 'rating', true));
+    }
+
     public function test_apply_snapshot_purges_comment_meta_added_by_mutation(): void
     {
         $post_id    = self::factory()->post->create();
