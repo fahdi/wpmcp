@@ -65,6 +65,8 @@ use WPMCP\Tools\Filesystem\Edit_File;
 use WPMCP\Tools\Filesystem\Delete_File;
 use WPMCP\Tools\Performance\Analyze_Performance;
 use WPMCP\Tools\Security\Scan_Security;
+use WPMCP\Tools\Cache\Get_Cache_Status;
+use WPMCP\Tools\Cache\Clear_Cache;
 use WPMCP\Tools\WooCommerce\List_Products;
 use WPMCP\Tools\WooCommerce\Get_Product;
 use WPMCP\Tools\WooCommerce\Create_Product;
@@ -1251,6 +1253,38 @@ final class Plugin
             'manage_options',
             'security',
             'read'
+        ));
+
+        $get_cache_status = new Get_Cache_Status();
+
+        $registrar->register(new Ability(
+            'wpmcp/get-cache-status',
+            'free',
+            'Report which caching layers are active on this site: the persistent object cache backend (external vs internal), OPcache (available and enabled), and any active page-cache plugin (WP Rocket, W3 Total Cache, WP Super Cache, LiteSpeed Cache, WP Fastest Cache) detected by its signature functions or constants. Read-only; inspects this site only',
+            [
+                'type'       => 'object',
+                'properties' => [],
+            ],
+            [$get_cache_status, 'handle'],
+            'manage_options',
+            'performance',
+            'read'
+        ));
+
+        $clear_cache = new Clear_Cache();
+
+        $registrar->register(new Ability(
+            'wpmcp/clear-cache',
+            'free',
+            'Flush this site\'s caches: the object cache (wp_cache_flush), all transients (per-site and site-wide), OPcache when available and enabled, and any detected page-cache plugin cleared via its own API. Returns a per-layer summary of what was cleared versus not present. Safe and idempotent: clearing a cache has no meaningful before-image to restore, so it is not snapshotted or rolled back',
+            [
+                'type'       => 'object',
+                'properties' => [],
+            ],
+            [$clear_cache, 'handle'],
+            'manage_options',
+            'performance',
+            'update'
         ));
 
         $this->register_woocommerce_abilities($registrar);
