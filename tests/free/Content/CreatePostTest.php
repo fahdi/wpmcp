@@ -30,4 +30,10 @@ class CreatePostTest extends \WP_UnitTestCase
         $this->expectException(\InvalidArgumentException::class);
         (new Create_Post())->handle(['post_type' => 'revision', 'title' => 'x']);
     }
+
+    public function test_rejects_unknown_post_type(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        (new Create_Post())->handle(['post_type' => 'no_such_type', 'title' => 'x']);
+    }
 }
