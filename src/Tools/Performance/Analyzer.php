@@ -10,6 +10,7 @@ class Analyzer
 {
     private const CRITICAL_WEIGHT = 15;
     private const WARNING_WEIGHT  = 4;
+    private const TOP_RECOMMENDATIONS = 8;
 
     /**
      * Pure: counts, score, grade for a set of findings.
@@ -42,9 +43,35 @@ class Analyzer
         }
 
         return [
-            'counts' => $counts,
-            'score'  => $score,
-            'grade'  => $grade,
+            'counts'              => $counts,
+            'score'               => $score,
+            'grade'               => $grade,
+            'top_recommendations' => $this->rank_recommendations($findings),
         ];
+    }
+
+    /**
+     * @param array $findings Finding[]
+     * @return string[]
+     */
+    private function rank_recommendations(array $findings): array
+    {
+        $critical = [];
+        $warning  = [];
+
+        foreach ($findings as $finding) {
+            $recommendation = trim((string) ($finding['recommendation'] ?? ''));
+            if ('' === $recommendation) {
+                continue;
+            }
+            $line = sprintf('[%s] %s', (string) ($finding['label'] ?? ''), $recommendation);
+            if ('critical' === ($finding['status'] ?? '')) {
+                $critical[] = $line;
+            } elseif ('warning' === ($finding['status'] ?? '')) {
+                $warning[] = $line;
+            }
+        }
+
+        return array_slice(array_merge($critical, $warning), 0, self::TOP_RECOMMENDATIONS);
     }
 }

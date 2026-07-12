@@ -91,4 +91,41 @@ class AnalyzerTest extends \WP_UnitTestCase
         $this->assertSame(37, $summary['score']);
         $this->assertSame('F', $summary['grade']);
     }
+
+    public function test_top_recommendations_rank_critical_before_warning(): void
+    {
+        $findings = [
+            $this->finding('warning', 'warn rec'),
+            $this->finding('critical', 'crit rec'),
+            $this->finding('pass'),
+        ];
+
+        $summary = $this->analyzer->summarize($findings);
+
+        $this->assertNotEmpty($summary['top_recommendations']);
+        $this->assertStringContainsString('crit rec', $summary['top_recommendations'][0]);
+        $this->assertStringContainsString('warn rec', $summary['top_recommendations'][1]);
+    }
+
+    public function test_top_recommendations_are_formatted_with_label_and_capped_at_eight(): void
+    {
+        $findings = [];
+        for ($i = 0; $i < 10; $i++) {
+            $findings[] = Finding::make('id' . $i, 'server', 'Label ' . $i, 'critical', 1, 'm', 'rec ' . $i);
+        }
+
+        $summary = $this->analyzer->summarize($findings);
+
+        $this->assertCount(8, $summary['top_recommendations']);
+        $this->assertSame('[Label 0] rec 0', $summary['top_recommendations'][0]);
+    }
+
+    public function test_top_recommendations_skip_findings_without_a_recommendation(): void
+    {
+        $findings = [$this->finding('warning', ''), $this->finding('pass')];
+
+        $summary = $this->analyzer->summarize($findings);
+
+        $this->assertSame([], $summary['top_recommendations']);
+    }
 }
