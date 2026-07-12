@@ -58,4 +58,37 @@ class AnalyzerTest extends \WP_UnitTestCase
         $this->assertSame(100, $summary['score']);
         $this->assertSame('A', $summary['grade']);
     }
+
+    public function test_grade_bands_at_exact_boundaries(): void
+    {
+        // 100 - (2 warnings * 4) = 92 -> A (>= 90).
+        $summary = $this->analyzer->summarize(array_fill(0, 2, $this->finding('warning')));
+        $this->assertSame(92, $summary['score']);
+        $this->assertSame('A', $summary['grade']);
+
+        // 100 - (5 warnings * 4) = 80 -> B (>= 80).
+        $summary = $this->analyzer->summarize(array_fill(0, 5, $this->finding('warning')));
+        $this->assertSame(80, $summary['score']);
+        $this->assertSame('B', $summary['grade']);
+
+        // 100 - (2 critical * 15) = 70 -> C (>= 70), exact lower boundary.
+        $summary = $this->analyzer->summarize(array_fill(0, 2, $this->finding('critical')));
+        $this->assertSame(70, $summary['score']);
+        $this->assertSame('C', $summary['grade']);
+
+        // 100 - (10 warnings * 4) = 60 -> D (>= 60), exact lower boundary.
+        $summary = $this->analyzer->summarize(array_fill(0, 10, $this->finding('warning')));
+        $this->assertSame(60, $summary['score']);
+        $this->assertSame('D', $summary['grade']);
+
+        // 100 - (1 critical * 15) - (12 warnings * 4) = 100 - 15 - 48 = 37 -> F.
+        // Confirms crossing just below the D floor grades F.
+        $findings = array_merge(
+            array_fill(0, 1, $this->finding('critical')),
+            array_fill(0, 12, $this->finding('warning'))
+        );
+        $summary = $this->analyzer->summarize($findings);
+        $this->assertSame(37, $summary['score']);
+        $this->assertSame('F', $summary['grade']);
+    }
 }
