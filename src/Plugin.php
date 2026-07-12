@@ -20,6 +20,9 @@ final class Plugin
     }
     public function boot(): void
     {
-        // Services wired in later tasks (register_activation_hook, MCP\Registrar, etc.)
+        if (function_exists('register_activation_hook') && defined('WPMCP_FILE')) {
+            register_activation_hook(WPMCP_FILE, [Activator::class, 'activate']);
+        }
+        // Additional services wired in later tasks (MCP\Registrar, etc.)
     }
 }
