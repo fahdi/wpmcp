@@ -66,10 +66,41 @@ class RestoreControllerAjaxTest extends \WP_Ajax_UnitTestCase
     {
         [$id, $operation_id] = $this->create_restorable_operation();
 
-        // Editor HAS edit_posts, but the nonce is bogus.
-        $this->_setRole('editor');
+        // Administrator HAS manage_options, but the nonce is bogus.
+        $this->_setRole('administrator');
         $_POST['operation_id'] = $operation_id;
         $_POST['nonce']        = 'not-a-valid-nonce';
+
+        try {
+            $this->_handleAjax('wpmcp_restore');
+            $this->fail('Expected wp_send_json_error to terminate execution via wp_die.');
+        } catch (\WPAjaxDieContinueException $e) {
+        } catch (\WPAjaxDieStopException $e) {
+        }
+
+        $response = json_decode($this->_last_response, true);
+        $this->assertIsArray($response, 'Expected a JSON error response body.');
+        $this->assertFalse($response['success']);
+
+        $this->assertSame(
+            '<!-- wp:paragraph --><p>V1</p><!-- /wp:paragraph -->',
+            get_post($id)->post_content
+        );
+    }
+
+    /**
+     * Restore rolls back ALL users' site-wide agent mutations, so it is gated
+     * at manage_options, not the weaker edit_posts. An editor holds edit_posts
+     * but not manage_options, so even with a valid nonce the restore is refused
+     * and the content stays mutated.
+     */
+    public function test_rejects_editor_without_manage_options_even_with_valid_nonce(): void
+    {
+        [$id, $operation_id] = $this->create_restorable_operation();
+
+        $this->_setRole('editor');
+        $_POST['operation_id'] = $operation_id;
+        $_POST['nonce']        = wp_create_nonce('wpmcp_restore');
 
         try {
             $this->_handleAjax('wpmcp_restore');
@@ -92,7 +123,7 @@ class RestoreControllerAjaxTest extends \WP_Ajax_UnitTestCase
     {
         [$id, $operation_id] = $this->create_restorable_operation();
 
-        $this->_setRole('editor');
+        $this->_setRole('administrator');
         $_POST['operation_id'] = $operation_id;
         $_POST['nonce']        = wp_create_nonce('wpmcp_restore');
 

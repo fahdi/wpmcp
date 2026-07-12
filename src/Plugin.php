@@ -128,10 +128,13 @@ final class Plugin
 
     public function register_admin_menu(): void
     {
+        // The history page views (and its Restore button rolls back) ALL
+        // users' site-wide agent mutations, so it is gated at manage_options,
+        // matching Restore_Controller::handle()'s ajax capability check.
         add_menu_page(
             'wpmcp',
             'wpmcp',
-            'edit_posts',
+            'manage_options',
             'wpmcp',
             [new History_Page(), 'render']
         );
