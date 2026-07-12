@@ -478,7 +478,8 @@ final class Plugin
                     'order'    => [ 'type' => 'string' ],
                 ],
             ],
-            [$list_users, 'handle']
+            [$list_users, 'handle'],
+            'list_users'
         ));
         $registrar->register(new Ability(
             'wpmcp/get-user',
@@ -491,7 +492,8 @@ final class Plugin
                 ],
                 'required'   => [ 'id' ],
             ],
-            [$get_user, 'handle']
+            [$get_user, 'handle'],
+            'list_users'
         ));
         $registrar->register(new Ability(
             'wpmcp/create-user',
@@ -643,7 +645,8 @@ final class Plugin
                 'type'       => 'object',
                 'properties' => [],
             ],
-            [$list_plugins, 'handle']
+            [$list_plugins, 'handle'],
+            'activate_plugins'
         ));
         $registrar->register(new Ability(
             'wpmcp/activate-plugin',
@@ -729,7 +732,8 @@ final class Plugin
                 'type'       => 'object',
                 'properties' => [],
             ],
-            [$list_themes, 'handle']
+            [$list_themes, 'handle'],
+            'activate_plugins'
         ));
         $registrar->register(new Ability(
             'wpmcp/switch-theme',
@@ -1078,7 +1082,8 @@ final class Plugin
                     'page'     => [ 'type' => 'integer' ],
                 ],
             ],
-            [$list_products, 'handle']
+            [$list_products, 'handle'],
+            'manage_woocommerce'
         ));
         $registrar->register(new Ability(
             'wpmcp/get-product',
@@ -1091,7 +1096,8 @@ final class Plugin
                 ],
                 'required'   => [ 'id' ],
             ],
-            [$get_product, 'handle']
+            [$get_product, 'handle'],
+            'manage_woocommerce'
         ));
         $registrar->register(new Ability(
             'wpmcp/create-product',
@@ -1166,7 +1172,8 @@ final class Plugin
                     'hide_empty' => [ 'type' => 'boolean' ],
                 ],
             ],
-            [$list_product_categories, 'handle']
+            [$list_product_categories, 'handle'],
+            'manage_woocommerce'
         ));
         $registrar->register(new Ability(
             'wpmcp/list-orders',
