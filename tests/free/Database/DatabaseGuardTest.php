@@ -140,4 +140,26 @@ class DatabaseGuardTest extends \WP_UnitTestCase
 
         remove_all_filters('wpmcp_db_protected_tables');
     }
+
+    /**
+     * Confirmed bypasses: normalize_sql() hardcodes backslash-as-escape, so
+     * `\'` is treated as an escaped quote and the (assumed) string literal
+     * swallows the file-access token that follows. Under a server running
+     * with NO_BACKSLASH_ESCAPES, MySQL does NOT treat `\` as an escape, so
+     * the string actually ends one character earlier than the guard thinks,
+     * and the file-access SQL after it is live, unparsed SQL that executes
+     * for real. A raw, sql_mode-independent pre-scan on the untouched input
+     * must catch both regardless of how normalize_sql() parses literals.
+     */
+    public function test_rejects_confirmed_backslash_escape_desync_bypasses(): void
+    {
+        $this->assertSame(
+            'file_access_blocked',
+            $this->code("SELECT * FROM wp_users WHERE 'a\\'='a' INTO OUTFILE '/tmp/o' -- x")
+        );
+        $this->assertSame(
+            'file_access_blocked',
+            $this->code("SELECT 'a\\' , load_file('/etc/passwd') , 'b")
+        );
+    }
 }

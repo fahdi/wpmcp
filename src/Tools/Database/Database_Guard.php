@@ -104,6 +104,23 @@ class Database_Guard
             return new \WP_Error('executable_comment', 'MySQL executable comments (/*! ... */) are not allowed.');
         }
 
+        // Raw, sql_mode-independent file-access pre-scan. normalize_sql()
+        // decides where string literals end based on an assumed escape rule
+        // (backslash-escapes quotes) that only holds when the server's
+        // sql_mode does NOT contain NO_BACKSLASH_ESCAPES. When it does, a
+        // literal like 'a\' actually ends at that quote (the backslash is an
+        // ordinary character), one character earlier than normalize_sql()
+        // assumes, letting a real INTO OUTFILE/LOAD_FILE token hide inside
+        // what the guard mistakes for string content. Scanning the untouched
+        // raw SQL for these tokens closes that vector regardless of sql_mode
+        // or how literals are eventually parsed. A legitimate query that
+        // merely contains the literal word "outfile" or "dumpfile" would be
+        // rejected too; that rare false positive is an acceptable trade for
+        // a read-only tool where file I/O is never a legitimate need.
+        if (preg_match('/(into\s+outfile|into\s+dumpfile|outfile|dumpfile|load_file\s*\()/i', $sql)) {
+            return new \WP_Error('file_access_blocked', 'File-access SQL (OUTFILE/DUMPFILE/LOAD_FILE) is not allowed.');
+        }
+
         $normalized = trim(self::normalize_sql($sql));
         if ('' === $normalized) {
             return new \WP_Error('empty_sql', 'Empty query.');
