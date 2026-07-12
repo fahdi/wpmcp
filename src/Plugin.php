@@ -25,6 +25,8 @@ use WPMCP\Tools\Media\Get_Media;
 use WPMCP\Tools\Media\Update_Media;
 use WPMCP\Tools\Media\Delete_Media;
 use WPMCP\Tools\Media\Sideload_Image;
+use WPMCP\Tools\Settings\Get_Settings;
+use WPMCP\Tools\Settings\Update_Settings;
 
 if (! defined('ABSPATH') && ! defined('WPMCP_TESTING')) {
     exit;
@@ -366,6 +368,36 @@ final class Plugin
                 'required'   => [ 'url' ],
             ],
             [$sideload_image, 'handle']
+        ));
+
+        $get_settings    = new Get_Settings();
+        $update_settings = new Update_Settings();
+
+        $registrar->register(new Ability(
+            'wpmcp/get-settings',
+            'free',
+            'Read WordPress site settings (general, reading, writing, discussion, media, permalinks), each with its group, type, and whether it is writable',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'group' => [ 'type' => 'string' ],
+                    'keys'  => [ 'type' => 'array' ],
+                ],
+            ],
+            [$get_settings, 'handle']
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/update-settings',
+            'free',
+            'Update WordPress site settings from a strict allowlist. Validates/coerces each value (enum, int range, bool), rejects unsafe permalink structures, skips read-only or non-allowlisted keys, and applies the valid subset even if some keys fail',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'settings' => [ 'type' => 'object' ],
+                ],
+                'required'   => [ 'settings' ],
+            ],
+            [$update_settings, 'handle']
         ));
     }
 }
