@@ -173,6 +173,16 @@ class PluginAbilitiesTest extends \WP_UnitTestCase
         $this->assertSame('delete', $abilities['wpmcp/delete-file']->operation);
     }
 
+    public function test_performance_and_security_abilities_are_tagged(): void
+    {
+        $abilities = $this->index(Plugin::instance()->registrar()->all());
+
+        $this->assertSame('performance', $abilities['wpmcp/analyze-performance']->domain);
+        $this->assertSame('read', $abilities['wpmcp/analyze-performance']->operation);
+        $this->assertSame('security', $abilities['wpmcp/scan-security']->domain);
+        $this->assertSame('read', $abilities['wpmcp/scan-security']->operation);
+    }
+
     /** @param Ability[] $abilities @return array<string, Ability> */
     private function index(array $abilities): array
     {

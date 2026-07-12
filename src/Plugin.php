@@ -1150,7 +1150,9 @@ final class Plugin
                 ],
             ],
             [$analyze_performance, 'handle'],
-            'manage_options'
+            'manage_options',
+            'performance',
+            'read'
         ));
 
         $scan_security = new Scan_Security();
@@ -1175,7 +1177,9 @@ final class Plugin
                 ],
             ],
             [$scan_security, 'handle'],
-            'manage_options'
+            'manage_options',
+            'security',
+            'read'
         ));
 
         $this->register_woocommerce_abilities($registrar);
