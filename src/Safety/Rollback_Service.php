@@ -31,16 +31,35 @@ class Rollback_Service
         $seen  = [];
         $count = 0;
         foreach ($rows as $r) {
-            $key = $r['object_type'] . ':' . $r['object_id'];
+            $snapshot = Snapshot::unserialize($r['before_blob']);
+            $key      = self::object_identity($snapshot);
             if (isset($seen[ $key ])) {
                 $count++;
                 continue;
             }
             $seen[ $key ] = true;
-            self::apply_snapshot(Snapshot::unserialize($r['before_blob']));
+            self::apply_snapshot($snapshot);
             $count++;
         }
         return $count;
+    }
+
+    /**
+     * A stable per-object dedup key for restore_session(), derived from the
+     * unserialized snapshot rather than the DB row's object_id column. That
+     * column is a BIGINT and is always 0 for 'option' snapshots (see
+     * Snapshot_Store::db_object_id()); the option's real identity, its name,
+     * only exists inside the serialized blob. Keying on the raw column would
+     * collapse every distinct option in a session onto the same "option:0"
+     * identity, restoring only the first one seen and silently skipping the
+     * rest while still counting them as processed.
+     */
+    private static function object_identity(array $snapshot): string
+    {
+        if ('option' === $snapshot['object_type']) {
+            return 'option:' . $snapshot['data']['name'];
+        }
+        return $snapshot['object_type'] . ':' . $snapshot['object_id'];
     }
 
     /**

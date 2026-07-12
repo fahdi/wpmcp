@@ -43,6 +43,42 @@ class RollbackServiceTest extends \WP_UnitTestCase
         $this->assertSame('V0', get_post($id)->post_content);
     }
 
+    private function edit_option(string $name, string $to, string $sess): array
+    {
+        return Safe_Mutation::run(
+            ['object_type' => 'option', 'object_id' => $name, 'session_id' => $sess, 'tool_name' => 'update-settings', 'args' => []],
+            function () use ($name, $to) {
+                update_option($name, $to);
+                return 'ok';
+            }
+        );
+    }
+
+    /**
+     * Regression test: restore_session() deduped rows by
+     * "{object_type}:{object_id}", using the DB object_id column. For
+     * 'option' snapshots that column is always 0 (the real identity, the
+     * option name, lives inside the serialized blob), so a session that
+     * touches two or more DISTINCT options collided on the same "option:0"
+     * key: only the first-seen option row was restored, and every other
+     * option in the session was silently skipped (though still counted).
+     * This is exactly the shape Update_Settings produces (one snapshot row
+     * per changed option, all sharing one session_id), so this under-restored
+     * every rollback-session call that touched more than one option.
+     */
+    public function test_restore_session_unwinds_multiple_distinct_options(): void
+    {
+        update_option('blogname', 'Original Name');
+        update_option('blogdescription', 'Original Tagline');
+
+        $this->edit_option('blogname', 'Changed Name', 'opts-sess');
+        $this->edit_option('blogdescription', 'Changed Tagline', 'opts-sess');
+
+        $this->assertSame(2, Rollback_Service::restore_session('opts-sess'));
+        $this->assertSame('Original Name', get_option('blogname'));
+        $this->assertSame('Original Tagline', get_option('blogdescription'));
+    }
+
     /**
      * Regression test: a mutation that ADDS a new post-meta key must be fully
      * undone by restore_operation(), including deleting the newly-added key.
