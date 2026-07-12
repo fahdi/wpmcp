@@ -17,6 +17,7 @@ class WriteFileTest extends \WP_UnitTestCase
     public function tearDown(): void
     {
         @unlink(ABSPATH . $this->rel_dir . '/new.txt');
+        @unlink(ABSPATH . $this->rel_dir . '/evil');
         @rmdir(ABSPATH . $this->rel_dir);
         parent::tearDown();
     }
@@ -98,6 +99,39 @@ class WriteFileTest extends \WP_UnitTestCase
             (new Write_File())->handle(['path' => $this->rel_dir . '/new.txt', 'content' => 'nope']);
         } finally {
             $this->assertFileDoesNotExist(ABSPATH . $this->rel_dir . '/new.txt');
+        }
+    }
+
+    /**
+     * Escape 1 (CRITICAL): a symlink whose leaf name lives inside the
+     * sandbox but whose target does not exist yet (a "dangling" symlink)
+     * must not be usable to write outside the WordPress install.
+     * resolve_path() previously canonicalized only dirname($candidate) in
+     * the not-yet-existing branch and trusted basename($candidate)
+     * verbatim, so sandbox/evil -> <outside path> passed containment as
+     * ABSPATH/sandbox/evil, and file_put_contents() then followed the
+     * symlink and wrote outside root.
+     */
+    public function test_refuses_to_write_through_a_dangling_symlink_leaf(): void
+    {
+        add_filter('wpmcp_enable_fs_writes', '__return_true');
+        $admin = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin);
+
+        $outside_target = sys_get_temp_dir() . '/wpmcp-escape1-' . uniqid() . '.txt';
+        $link            = ABSPATH . $this->rel_dir . '/evil';
+
+        if (! @symlink($outside_target, $link)) {
+            $this->markTestSkipped('symlink() unavailable in this environment');
+        }
+
+        try {
+            $this->expectException(\RuntimeException::class);
+            (new Write_File())->handle(['path' => $this->rel_dir . '/evil', 'content' => 'pwned']);
+        } finally {
+            $this->assertFileDoesNotExist($outside_target);
+            @unlink($link);
+            @unlink($outside_target);
         }
     }
 }

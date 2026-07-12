@@ -46,6 +46,13 @@ class Filesystem_Guard
 
         $real = realpath($candidate);
         if (false === $real) {
+            // is_link() (not file_exists()) so a dangling symlink leaf -
+            // one whose target does not exist - is still caught here;
+            // file_exists() follows the link and returns false for those,
+            // which would let the check below be skipped entirely.
+            if (is_link($candidate)) {
+                return new \WP_Error('outside_root', 'Path is outside the WordPress installation.');
+            }
             $parent = realpath(dirname($candidate));
             if (false === $parent) {
                 return new \WP_Error('parent_missing', 'The target directory does not exist.');

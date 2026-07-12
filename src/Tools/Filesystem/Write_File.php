@@ -40,6 +40,13 @@ class Write_File
             throw new \RuntimeException('This file is protected from writes.');
         }
 
+        // Defense in depth: resolve_path() already rejects a dangling
+        // symlink leaf, but never write through a symlink here either,
+        // in case it is ever reached with an already-resolved path.
+        if (is_link($abs)) {
+            throw new \RuntimeException('Refusing to write through a symlink.');
+        }
+
         $content = (string) ($args['content'] ?? '');
         $existed = is_file($abs);
 
