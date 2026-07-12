@@ -115,4 +115,13 @@ class FilesystemGuardTest extends \WP_UnitTestCase
         $this->assertInstanceOf(\WP_Error::class, Filesystem_Guard::check_writes(true, true));
         $this->assertInstanceOf(\WP_Error::class, Filesystem_Guard::check_writes(false, false));
     }
+
+    public function test_to_relative_strips_the_root_prefix(): void
+    {
+        $abs = realpath($this->root . '/wp-content/themes/x/style.css');
+        $this->assertSame(
+            'wp-content/themes/x/style.css',
+            Filesystem_Guard::to_relative($abs, $this->root)
+        );
+    }
 }

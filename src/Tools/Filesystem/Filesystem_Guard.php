@@ -117,4 +117,19 @@ class Filesystem_Guard
         }
         return true;
     }
+
+    /**
+     * Path relative to $root (defaults to ABSPATH), for display/log/output.
+     * $root is a parameter only so tests can point it at a fixture root.
+     */
+    public static function to_relative(string $abs, ?string $root = null): string
+    {
+        $root  = $root ?? ABSPATH;
+        $root  = rtrim((string) realpath($root), '/\\');
+        $abs_n = $abs;
+        if ('' !== $root && 0 === strpos($abs_n, $root)) {
+            $abs_n = ltrim(substr($abs_n, strlen($root)), '/\\');
+        }
+        return str_replace('\\', '/', $abs_n);
+    }
 }
