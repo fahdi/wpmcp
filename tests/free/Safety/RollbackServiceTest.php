@@ -2,7 +2,8 @@
 
 namespace WPMCP\Tests\Free\Safety;
 
-use WPMCP\Safety\{Rollback_Service, Safe_Mutation, Snapshot_Store};
+use WPMCP\Safety\{Mutation_Failed, Rollback_Service, Safe_Mutation, Snapshot_Store};
+use WPMCP\Tools\Content\Delete_Post;
 
 class RollbackServiceTest extends \WP_UnitTestCase
 {
@@ -71,5 +72,52 @@ class RollbackServiceTest extends \WP_UnitTestCase
         // The key must be entirely gone, not merely emptied.
         $this->assertSame('', get_post_meta($id, 'brand_new_key', true));
         $this->assertArrayNotHasKey('brand_new_key', get_post_meta($id));
+    }
+
+    /**
+     * Regression test: wp_insert_post()'s 'import_id' is only honored if
+     * that ID is still free at insert time; on a collision it silently
+     * returns a NEW auto-increment ID instead. Before the fix, the
+     * resurrection code ignored wp_insert_post()'s return value entirely,
+     * so a rollback could land at the wrong ID with no error at all. Here
+     * the original ID is reclaimed by a different post before rollback
+     * runs, forcing that exact collision, and the rollback must now raise
+     * Mutation_Failed instead of silently creating a wrong-ID post.
+     */
+    public function test_restore_operation_throws_on_import_id_collision(): void
+    {
+        global $wpdb;
+
+        $id  = self::factory()->post->create(['post_title' => 'keep me', 'post_status' => 'publish']);
+        $out = (new Delete_Post())->handle(['post_id' => $id, 'force' => true, 'session_id' => 's1']);
+        $this->assertNull(get_post($id));
+
+        // Reclaim the freed ID with an unrelated post, simulating the
+        // collision window between the force-delete and the rollback. A
+        // deliberately distant post_date_gmt (WordPress's immutable
+        // creation-time identity marker) keeps this deterministic even if
+        // the whole test runs within the same wall-clock second.
+        $wpdb->insert($wpdb->posts, [
+            'ID'            => $id,
+            'post_author'   => 0,
+            'post_title'    => 'someone else now owns this id',
+            'post_status'   => 'publish',
+            'post_type'     => 'post',
+            'post_name'     => 'someone-else',
+            'post_date'     => '2001-01-01 00:00:00',
+            'post_date_gmt' => '2001-01-01 00:00:00',
+        ]);
+        clean_post_cache($id);
+        $this->assertNotNull(get_post($id));
+        $this->assertSame('someone else now owns this id', get_post($id)->post_title);
+
+        $this->expectException(Mutation_Failed::class);
+        try {
+            Rollback_Service::restore_operation($out['operation_id']);
+        } finally {
+            // The colliding post must be left untouched, not silently
+            // overwritten or joined with the resurrection attempt.
+            $this->assertSame('someone else now owns this id', get_post($id)->post_title);
+        }
     }
 }

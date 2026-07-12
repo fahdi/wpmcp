@@ -70,6 +70,18 @@ class Rollback_Service
     }
 
     /**
+     * True if $current (a live get_post(ARRAY_A) row) is plausibly the same
+     * post the snapshot was captured from, rather than a different post that
+     * has since reclaimed the same ID. post_date_gmt is set once at
+     * creation and never changes on update, making it a reliable identity
+     * check that costs nothing extra to capture.
+     */
+    private static function is_same_post(array $current, array $snapshotted): bool
+    {
+        return ($current['post_date_gmt'] ?? null) === ($snapshotted['post_date_gmt'] ?? null);
+    }
+
+    /**
      * Restore an object to the exact state captured in $snapshot.
      *
      * For 'post' objects this must be a FULL restore, not an additive merge:
@@ -97,6 +109,16 @@ class Rollback_Service
      * at the wrong ID with no error, so the returned ID is verified against
      * the requested one and a Mutation_Failed is thrown on any mismatch or
      * WP_Error instead of leaving that wrong-ID post in place.
+     *
+     * Whether to update in place or resurrect is decided by identity, not
+     * mere existence of a row at $object_id: post_date_gmt is immutable
+     * after creation, so if a post exists at that ID but its post_date_gmt
+     * doesn't match the snapshot, it is a DIFFERENT post that has since
+     * reclaimed the original ID (e.g. a manual re-import after the original
+     * was force-deleted), not the object being rolled back. Treating that
+     * case as "exists, update in place" would silently overwrite an
+     * unrelated post's content; routing it through resurrect() instead lets
+     * the import_id collision check catch it and fail loudly.
      */
     public static function apply_snapshot(array $snapshot): void
     {
@@ -107,7 +129,8 @@ class Rollback_Service
         $object_id = (int) $snapshot['object_id'];
 
         if ($snapshot['data']['post']) {
-            if (get_post($object_id)) {
+            $current = get_post($object_id, ARRAY_A);
+            if ($current && self::is_same_post($current, $snapshot['data']['post'])) {
                 $postarr = array_merge(['ID' => $object_id], self::restore_columns($snapshot['data']['post'], false));
                 wp_update_post($postarr);
             } else {
