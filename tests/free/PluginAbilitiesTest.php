@@ -69,6 +69,28 @@ class PluginAbilitiesTest extends \WP_UnitTestCase
         $this->assertSame('delete', $abilities['wpmcp/delete-post']->operation);
     }
 
+    public function test_media_abilities_are_tagged_media_domain(): void
+    {
+        $abilities = $this->index(Plugin::instance()->registrar()->all());
+
+        $this->assertSame('media', $abilities['wpmcp/get-media']->domain);
+        $this->assertSame('read', $abilities['wpmcp/get-media']->operation);
+        $this->assertSame('media', $abilities['wpmcp/delete-media']->domain);
+        $this->assertSame('delete', $abilities['wpmcp/delete-media']->operation);
+        $this->assertSame('media', $abilities['wpmcp/sideload-image']->domain);
+        $this->assertSame('create', $abilities['wpmcp/sideload-image']->operation);
+    }
+
+    public function test_settings_abilities_are_tagged_settings_domain(): void
+    {
+        $abilities = $this->index(Plugin::instance()->registrar()->all());
+
+        $this->assertSame('settings', $abilities['wpmcp/get-settings']->domain);
+        $this->assertSame('read', $abilities['wpmcp/get-settings']->operation);
+        $this->assertSame('settings', $abilities['wpmcp/update-settings']->domain);
+        $this->assertSame('update', $abilities['wpmcp/update-settings']->operation);
+    }
+
     /** @param Ability[] $abilities @return array<string, Ability> */
     private function index(array $abilities): array
     {

@@ -426,7 +426,10 @@ final class Plugin
                 ],
                 'required'   => [ 'media_id' ],
             ],
-            [$get_media, 'handle']
+            [$get_media, 'handle'],
+            'edit_posts',
+            'media',
+            'read'
         ));
         $registrar->register(new Ability(
             'wpmcp/update-media',
@@ -444,7 +447,10 @@ final class Plugin
                 ],
                 'required'   => [ 'media_id' ],
             ],
-            [$update_media, 'handle']
+            [$update_media, 'handle'],
+            'edit_posts',
+            'media',
+            'update'
         ));
         $registrar->register(new Ability(
             'wpmcp/delete-media',
@@ -460,7 +466,10 @@ final class Plugin
                 ],
                 'required'   => [ 'media_id', 'confirm' ],
             ],
-            [$delete_media, 'handle']
+            [$delete_media, 'handle'],
+            'edit_posts',
+            'media',
+            'delete'
         ));
         $registrar->register(new Ability(
             'wpmcp/sideload-image',
@@ -476,7 +485,10 @@ final class Plugin
                 ],
                 'required'   => [ 'url' ],
             ],
-            [$sideload_image, 'handle']
+            [$sideload_image, 'handle'],
+            'edit_posts',
+            'media',
+            'create'
         ));
 
         $get_settings    = new Get_Settings();
@@ -493,7 +505,10 @@ final class Plugin
                     'keys'  => [ 'type' => 'array' ],
                 ],
             ],
-            [$get_settings, 'handle']
+            [$get_settings, 'handle'],
+            'edit_posts',
+            'settings',
+            'read'
         ));
         $registrar->register(new Ability(
             'wpmcp/update-settings',
@@ -506,7 +521,10 @@ final class Plugin
                 ],
                 'required'   => [ 'settings' ],
             ],
-            [$update_settings, 'handle']
+            [$update_settings, 'handle'],
+            'edit_posts',
+            'settings',
+            'update'
         ));
 
         $list_users  = new List_Users();
