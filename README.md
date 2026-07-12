@@ -116,6 +116,8 @@ The free plugin (this repo) is fully functional: the safety engine, Gutenberg ed
 
 Pro (planned, via [Freemius](https://freemius.com/)) will add unlimited history and session rollback, Elementor deep editing, change previews, and priority support. The Pro gate (`WPMCP\Pro\Gate`) and Freemius bootstrap are wired from day one; the plugin degrades gracefully when the Pro SDK is absent.
 
+Freemius is opt-in only at the integration level: `anonymous_mode` is enabled by default (see `WPMCP\Freemius\Bootstrap::config()`), so no telemetry opt-in gate is forced on activation. Going live on Pro requires two steps: register the plugin on freemius.com and fill `WPMCP_FS_ID` / `WPMCP_FS_PUBLIC_KEY` in `wpmcp.php`, then vendor the Freemius SDK at `vendor/freemius/start.php`.
+
 ## Roadmap
 
 - [ ] Elementor deep editing (Pro)
