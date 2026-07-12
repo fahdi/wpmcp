@@ -108,4 +108,11 @@ class FilesystemGuardTest extends \WP_UnitTestCase
         $this->assertTrue(Filesystem_Guard::is_utf8("plain text\nok"));
         $this->assertFalse(Filesystem_Guard::is_utf8("\xff\xfe\x00\x01binary"));
     }
+
+    public function test_check_writes_gates_on_capability_and_disallow_file_edit(): void
+    {
+        $this->assertTrue(Filesystem_Guard::check_writes(true, false));
+        $this->assertInstanceOf(\WP_Error::class, Filesystem_Guard::check_writes(true, true));
+        $this->assertInstanceOf(\WP_Error::class, Filesystem_Guard::check_writes(false, false));
+    }
 }

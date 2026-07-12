@@ -100,4 +100,21 @@ class Filesystem_Guard
         }
         return (bool) preg_match('//u', $content);
     }
+
+    /**
+     * Pure: gate write/edit/delete on the edit_files capability and honor
+     * DISALLOW_FILE_EDIT.
+     *
+     * @return true|\WP_Error
+     */
+    public static function check_writes(bool $can_edit_files, bool $disallow_file_edit)
+    {
+        if ($disallow_file_edit) {
+            return new \WP_Error('file_edit_disabled', 'File editing is disabled on this site (DISALLOW_FILE_EDIT).');
+        }
+        if (! $can_edit_files) {
+            return new \WP_Error('file_edit_disabled', 'You do not have permission to edit files.');
+        }
+        return true;
+    }
 }
