@@ -36,4 +36,25 @@ class SetPostTermsTest extends \WP_UnitTestCase
         sort($expected);
         $this->assertSame($expected, $assigned);
     }
+
+    public function test_append_mode_keeps_existing_terms(): void
+    {
+        $id       = self::factory()->post->create();
+        $existing = self::factory()->tag->create();
+        $new_term = self::factory()->tag->create();
+        wp_set_object_terms($id, [$existing], 'post_tag');
+
+        (new Set_Post_Terms())->handle([
+            'post_id'  => $id,
+            'taxonomy' => 'post_tag',
+            'terms'    => [$new_term],
+            'mode'     => 'append',
+        ]);
+
+        $assigned = wp_get_post_terms($id, 'post_tag', ['fields' => 'ids']);
+        sort($assigned);
+        $expected = [$existing, $new_term];
+        sort($expected);
+        $this->assertSame($expected, $assigned);
+    }
 }
