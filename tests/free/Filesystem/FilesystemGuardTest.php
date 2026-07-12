@@ -87,4 +87,13 @@ class FilesystemGuardTest extends \WP_UnitTestCase
 
         @unlink($link);
     }
+
+    public function test_is_protected_flags_config_and_htaccess_case_insensitively(): void
+    {
+        $this->assertTrue(Filesystem_Guard::is_protected('/srv/site/wp-config.php'));
+        $this->assertTrue(Filesystem_Guard::is_protected('/srv/site/WP-CONFIG.PHP'));
+        $this->assertTrue(Filesystem_Guard::is_protected('/srv/site/.htaccess'));
+        $this->assertTrue(Filesystem_Guard::is_protected('/srv/site/.HTACCESS'));
+        $this->assertFalse(Filesystem_Guard::is_protected('/srv/site/wp-content/themes/x/style.css'));
+    }
 }

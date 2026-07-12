@@ -62,4 +62,18 @@ class Filesystem_Guard
 
         return $real;
     }
+
+    /**
+     * Whether a path is write/delete-protected (wp-config.php / .htaccess),
+     * matched case-insensitively on the basename. Filterable so a site can
+     * extend the protected list.
+     */
+    public static function is_protected(string $abs): bool
+    {
+        $base      = strtolower(basename($abs));
+        $protected = ['wp-config.php', '.htaccess'];
+        /** Filter the write/delete-protected basenames. */
+        $protected = (array) apply_filters('wpmcp_fs_protected_paths', $protected, $abs);
+        return in_array($base, array_map('strtolower', $protected), true);
+    }
 }
