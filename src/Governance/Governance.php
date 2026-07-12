@@ -20,6 +20,7 @@ class Governance
 
     public static function is_ability_enabled(Ability $a): bool
     {
-        return true;
+        $enabled = apply_filters('wpmcp_ability_enabled', true, $a->name);
+        return (bool) $enabled;
     }
 }

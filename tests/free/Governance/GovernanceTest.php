@@ -22,4 +22,28 @@ class GovernanceTest extends \WP_UnitTestCase
     {
         $this->assertTrue(Governance::is_ability_enabled($this->ability()));
     }
+
+    public function test_wpmcp_ability_enabled_filter_can_disable_a_named_ability(): void
+    {
+        $ability = $this->ability('wpmcp/delete-post');
+        add_filter('wpmcp_ability_enabled', function (bool $enabled, string $name) {
+            return 'wpmcp/delete-post' === $name ? false : $enabled;
+        }, 10, 2);
+
+        $this->assertFalse(Governance::is_ability_enabled($ability));
+
+        remove_all_filters('wpmcp_ability_enabled');
+    }
+
+    public function test_wpmcp_ability_enabled_filter_does_not_affect_other_abilities(): void
+    {
+        $ability = $this->ability('wpmcp/get-post');
+        add_filter('wpmcp_ability_enabled', function (bool $enabled, string $name) {
+            return 'wpmcp/delete-post' === $name ? false : $enabled;
+        }, 10, 2);
+
+        $this->assertTrue(Governance::is_ability_enabled($ability));
+
+        remove_all_filters('wpmcp_ability_enabled');
+    }
 }
