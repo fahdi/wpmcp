@@ -48,6 +48,12 @@ use WPMCP\Tools\Database\Query;
 use WPMCP\Tools\Database\Insert_Row;
 use WPMCP\Tools\Database\Update_Rows;
 use WPMCP\Tools\Database\Delete_Rows;
+use WPMCP\Tools\Filesystem\Read_File;
+use WPMCP\Tools\Filesystem\List_Directory;
+use WPMCP\Tools\Filesystem\Search_Files;
+use WPMCP\Tools\Filesystem\Write_File;
+use WPMCP\Tools\Filesystem\Edit_File;
+use WPMCP\Tools\Filesystem\Delete_File;
 
 if (! defined('ABSPATH') && ! defined('WPMCP_TESTING')) {
     exit;
@@ -759,6 +765,106 @@ final class Plugin
                 'required'   => [ 'table', 'where' ],
             ],
             [$delete_rows, 'handle'],
+            'manage_options'
+        ));
+
+        $read_file      = new Read_File();
+        $list_directory = new List_Directory();
+        $search_files   = new Search_Files();
+        $write_file     = new Write_File();
+        $edit_file      = new Edit_File();
+        $delete_file    = new Delete_File();
+
+        $registrar->register(new Ability(
+            'wpmcp/read-file',
+            'free',
+            'Read a file inside the WordPress installation (core, plugins, themes, uploads). Path is confined to the WP install',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'path' => [ 'type' => 'string' ],
+                ],
+                'required'   => [ 'path' ],
+            ],
+            [$read_file, 'handle'],
+            'manage_options'
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/list-directory',
+            'free',
+            'List entries (files/dirs with size and mtime) of a directory inside the WordPress install. Optional bounded recursive listing',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'path'      => [ 'type' => 'string' ],
+                    'recursive' => [ 'type' => 'boolean' ],
+                ],
+            ],
+            [$list_directory, 'handle'],
+            'manage_options'
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/search-files',
+            'free',
+            'Search file contents for a substring across a directory tree inside the WordPress install. Filterable by extension; results are capped',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'query'       => [ 'type' => 'string' ],
+                    'path'        => [ 'type' => 'string' ],
+                    'extensions'  => [ 'type' => 'array', 'items' => [ 'type' => 'string' ] ],
+                    'max_results' => [ 'type' => 'integer' ],
+                ],
+                'required'   => [ 'query' ],
+            ],
+            [$search_files, 'handle'],
+            'manage_options'
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/write-file',
+            'free',
+            'Create or overwrite a file inside the WordPress install. Backs up an existing file first (recoverable via restore). Refuses wp-config.php/.htaccess. Disabled by default (wpmcp_enable_fs_writes filter); requires edit_files and honors DISALLOW_FILE_EDIT',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'path'    => [ 'type' => 'string' ],
+                    'content' => [ 'type' => 'string' ],
+                ],
+                'required'   => [ 'path', 'content' ],
+            ],
+            [$write_file, 'handle'],
+            'manage_options'
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/edit-file',
+            'free',
+            'Replace an exact string in a file (must match once unless replace_all). Backs up the original first (recoverable via restore). Refuses wp-config.php/.htaccess. Disabled by default (wpmcp_enable_fs_writes filter); requires edit_files and honors DISALLOW_FILE_EDIT',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'path'        => [ 'type' => 'string' ],
+                    'old_string'  => [ 'type' => 'string' ],
+                    'new_string'  => [ 'type' => 'string' ],
+                    'replace_all' => [ 'type' => 'boolean' ],
+                ],
+                'required'   => [ 'path', 'old_string', 'new_string' ],
+            ],
+            [$edit_file, 'handle'],
+            'manage_options'
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/delete-file',
+            'free',
+            'Delete a file inside the WordPress install. Requires confirm:true. Backs up the file first (recoverable via restore). Refuses wp-config.php/.htaccess. Disabled by default (wpmcp_enable_fs_writes filter); requires edit_files and honors DISALLOW_FILE_EDIT',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'path'    => [ 'type' => 'string' ],
+                    'confirm' => [ 'type' => 'boolean' ],
+                ],
+                'required'   => [ 'path' ],
+            ],
+            [$delete_file, 'handle'],
             'manage_options'
         ));
     }
