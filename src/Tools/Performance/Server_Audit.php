@@ -13,6 +13,42 @@ class Server_Audit
     private const REVISIONS_WARN_COUNT = 1000;
     private const AUTOLOAD_WARN_BYTES  = 1048576;  // 1 MB
     private const AUTOLOAD_CRIT_BYTES  = 3145728;  // 3 MB
+    private const TOP_TABLES           = 5;
+    private const TOP_AUTOLOAD_OPTIONS = 5;
+
+    /**
+     * Run every server/database/config check against the live environment.
+     *
+     * @return array Finding[]
+     */
+    public function run(): array
+    {
+        global $wpdb;
+        $findings = [];
+
+        $findings[] = $this->evaluate_php_version(PHP_VERSION);
+        $findings[] = $this->evaluate_memory_limit((string) ini_get('memory_limit'));
+        $findings[] = $this->evaluate_opcache($this->opcache_enabled());
+        $findings[] = $this->evaluate_object_cache(
+            function_exists('wp_using_ext_object_cache') && wp_using_ext_object_cache()
+        );
+        $findings[] = $this->evaluate_image_lib(extension_loaded('imagick'), extension_loaded('gd'));
+
+        $environment = function_exists('wp_get_environment_type') ? wp_get_environment_type() : 'production';
+        $findings[]  = $this->evaluate_wp_debug(defined('WP_DEBUG') && WP_DEBUG, $environment);
+
+        $findings[] = $this->evaluate_plugin_count(count((array) get_option('active_plugins', [])));
+        $findings[] = $this->evaluate_revisions($this->count_revisions($wpdb));
+        $findings[] = $this->evaluate_cron_backlog($this->count_overdue_cron());
+
+        [$autoload_bytes, $top_autoload] = $this->autoload_stats($wpdb);
+        $findings[]                      = $this->evaluate_autoload_size($autoload_bytes, $top_autoload);
+
+        [$database_bytes, $top_tables] = $this->database_stats($wpdb);
+        $findings[]                    = $this->evaluate_database_size($database_bytes, $top_tables);
+
+        return $findings;
+    }
 
     public function evaluate_php_version(string $version): array
     {
@@ -241,6 +277,78 @@ class Server_Audit
             ['bytes' => $bytes, 'top_tables' => $top_tables],
             sprintf('Database is %s; %d largest tables listed.', $this->human_bytes($bytes), count($top_tables))
         );
+    }
+
+    private function opcache_enabled(): bool
+    {
+        if (! function_exists('opcache_get_status')) {
+            return false;
+        }
+        $status = @opcache_get_status(false);
+        return is_array($status) && ! empty($status['opcache_enabled']);
+    }
+
+    private function count_revisions($wpdb): int
+    {
+        return (int) $wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$wpdb->posts} WHERE post_type = %s", 'revision'));
+    }
+
+    private function count_overdue_cron(): int
+    {
+        $crons = function_exists('_get_cron_array') ? _get_cron_array() : [];
+        if (! is_array($crons)) {
+            return 0;
+        }
+        $now     = time();
+        $overdue = 0;
+        foreach (array_keys($crons) as $timestamp) {
+            if ((int) $timestamp < ($now - 300)) { // more than 5 minutes late.
+                $overdue++;
+            }
+        }
+        return $overdue;
+    }
+
+    private function autoload_stats($wpdb): array
+    {
+        $bytes = (int) $wpdb->get_var(
+            "SELECT SUM(LENGTH(option_value)) FROM {$wpdb->options} WHERE autoload IN ('yes','on','auto')"
+        );
+        $rows = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT option_name, LENGTH(option_value) AS sz FROM {$wpdb->options} WHERE autoload IN ('yes','on','auto') ORDER BY sz DESC LIMIT %d",
+                self::TOP_AUTOLOAD_OPTIONS
+            ),
+            ARRAY_A
+        );
+        $top = [];
+        foreach ((array) $rows as $row) {
+            $top[] = ['option' => (string) $row['option_name'], 'bytes' => (int) $row['sz']];
+        }
+        return [$bytes, $top];
+    }
+
+    private function database_stats($wpdb): array
+    {
+        $rows = $wpdb->get_results(
+            $wpdb->prepare(
+                'SELECT table_name AS n, (data_length + index_length) AS sz FROM information_schema.TABLES WHERE table_schema = %s ORDER BY sz DESC LIMIT %d',
+                DB_NAME,
+                self::TOP_TABLES
+            ),
+            ARRAY_A
+        );
+        $total = (int) $wpdb->get_var(
+            $wpdb->prepare(
+                'SELECT SUM(data_length + index_length) FROM information_schema.TABLES WHERE table_schema = %s',
+                DB_NAME
+            )
+        );
+        $top = [];
+        foreach ((array) $rows as $row) {
+            $top[] = ['table' => (string) $row['n'], 'bytes' => (int) $row['sz']];
+        }
+        return [$total, $top];
     }
 
     private function human_bytes(int $bytes): string

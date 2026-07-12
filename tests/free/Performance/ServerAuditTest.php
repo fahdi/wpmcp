@@ -108,4 +108,29 @@ class ServerAuditTest extends \WP_UnitTestCase
         $this->assertSame(50000, $result['value']['bytes']);
         $this->assertSame($top, $result['value']['top_tables']);
     }
+
+    public function test_run_gathers_every_check_against_the_live_environment(): void
+    {
+        $findings = $this->audit->run();
+        $ids      = array_column($findings, 'id');
+
+        $expected = [
+            'php_version',
+            'memory_limit',
+            'opcache',
+            'object_cache',
+            'image_lib',
+            'wp_debug',
+            'plugin_count',
+            'post_revisions',
+            'cron_backlog',
+            'autoload_size',
+            'database_size',
+        ];
+
+        foreach ($expected as $id) {
+            $this->assertContains($id, $ids, "Expected a {$id} finding from run()");
+        }
+        $this->assertCount(count($expected), $findings);
+    }
 }
