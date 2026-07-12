@@ -1,0 +1,61 @@
+<?php
+/**
+ * Test support helpers for optional third-party plugins.
+ *
+ * The integration suite can run with Elementor and/or WooCommerce activated so
+ * their parity areas can be exercised. Both plugins are optional: the suite must
+ * still run when they are absent. These helpers let plugin-specific tests mark
+ * themselves skipped (not failed) when the plugin is not present.
+ */
+
+if ( ! function_exists( 'wpmcp_test_plugins_dir' ) ) {
+	/**
+	 * Resolve the plugins directory of the WordPress test install.
+	 *
+	 * Runs during muplugins_loaded, before WordPress defines WP_PLUGIN_DIR, so
+	 * the path is derived from the same core dir the install scripts use.
+	 */
+	function wpmcp_test_plugins_dir(): string {
+		$tmp = getenv( 'TMPDIR' ) ?: sys_get_temp_dir();
+		$core = getenv( 'WP_CORE_DIR' ) ?: rtrim( $tmp, '/' ) . '/wordpress/';
+
+		return rtrim( $core, '/' ) . '/wp-content/plugins';
+	}
+}
+
+if ( ! function_exists( 'wpmcp_maybe_require_plugin' ) ) {
+	/**
+	 * Require a plugin's main file when it is present.
+	 *
+	 * Guarded so a missing plugin never fatals the bootstrap.
+	 */
+	function wpmcp_maybe_require_plugin( string $relative_main_file ): bool {
+		$path = wpmcp_test_plugins_dir() . '/' . ltrim( $relative_main_file, '/' );
+
+		if ( ! is_readable( $path ) ) {
+			return false;
+		}
+
+		require_once $path;
+
+		return true;
+	}
+}
+
+if ( ! function_exists( 'wpmcp_elementor_active' ) ) {
+	/**
+	 * Whether Elementor is loaded in the current test run.
+	 */
+	function wpmcp_elementor_active(): bool {
+		return class_exists( '\\Elementor\\Plugin' );
+	}
+}
+
+if ( ! function_exists( 'wpmcp_woocommerce_active' ) ) {
+	/**
+	 * Whether WooCommerce is loaded in the current test run.
+	 */
+	function wpmcp_woocommerce_active(): bool {
+		return class_exists( 'WooCommerce' ) && function_exists( 'WC' );
+	}
+}
