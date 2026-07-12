@@ -31,6 +31,11 @@ use WPMCP\Tools\Users\List_Users;
 use WPMCP\Tools\Users\Get_User;
 use WPMCP\Tools\Users\Create_User;
 use WPMCP\Tools\Users\Update_User;
+use WPMCP\Tools\Comments\List_Comments;
+use WPMCP\Tools\Comments\Get_Comment;
+use WPMCP\Tools\Comments\Moderate_Comment;
+use WPMCP\Tools\Comments\Edit_Comment;
+use WPMCP\Tools\Comments\Delete_Comment;
 use WPMCP\Tools\Packages\List_Plugins;
 use WPMCP\Tools\Packages\Activate_Plugin;
 use WPMCP\Tools\Packages\Deactivate_Plugin;
@@ -503,6 +508,94 @@ final class Plugin
             ],
             [$update_user, 'handle'],
             'edit_users'
+        ));
+
+        $list_comments     = new List_Comments();
+        $get_comment       = new Get_Comment();
+        $moderate_comment  = new Moderate_Comment();
+        $edit_comment      = new Edit_Comment();
+        $delete_comment    = new Delete_Comment();
+
+        $registrar->register(new Ability(
+            'wpmcp/list-comments',
+            'free',
+            'List comments as safe summary rows (id, post, author, content, status, date), optionally filtered by post and moderation status, with paging',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'post_id'  => [ 'type' => 'integer' ],
+                    'status'   => [ 'type' => 'string' ],
+                    'per_page' => [ 'type' => 'integer' ],
+                    'page'     => [ 'type' => 'integer' ],
+                ],
+            ],
+            [$list_comments, 'handle'],
+            'moderate_comments'
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/get-comment',
+            'free',
+            'Read one comment\'s detail (post, parent, author fields, content, status, date)',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'id' => [ 'type' => 'integer' ],
+                ],
+                'required'   => [ 'id' ],
+            ],
+            [$get_comment, 'handle'],
+            'moderate_comments'
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/moderate-comment',
+            'free',
+            'Change a comment\'s moderation status: approve, unapprove, spam, trash or untrash. Snapshotted so the change can be rolled back',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'id'         => [ 'type' => 'integer' ],
+                    'status'     => [ 'type' => 'string' ],
+                    'session_id' => [ 'type' => 'string' ],
+                ],
+                'required'   => [ 'id', 'status' ],
+            ],
+            [$moderate_comment, 'handle'],
+            'moderate_comments'
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/edit-comment',
+            'free',
+            'Edit a comment\'s content and/or author fields (name, email, url). Snapshotted so the change can be rolled back',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'id'           => [ 'type' => 'integer' ],
+                    'content'      => [ 'type' => 'string' ],
+                    'author'       => [ 'type' => 'string' ],
+                    'author_email' => [ 'type' => 'string' ],
+                    'author_url'   => [ 'type' => 'string' ],
+                    'session_id'   => [ 'type' => 'string' ],
+                ],
+                'required'   => [ 'id' ],
+            ],
+            [$edit_comment, 'handle'],
+            'edit_comments'
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/delete-comment',
+            'free',
+            'Permanently delete a comment. Disabled by default (site must opt in via the wpmcp_enable_delete_comment filter) and requires confirm:true. Routed through the safety snapshot so it can be rolled back, though the resurrected comment gets a new ID',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'id'         => [ 'type' => 'integer' ],
+                    'confirm'    => [ 'type' => 'boolean' ],
+                    'session_id' => [ 'type' => 'string' ],
+                ],
+                'required'   => [ 'id', 'confirm' ],
+            ],
+            [$delete_comment, 'handle'],
+            'edit_comments'
         ));
 
         $list_plugins      = new List_Plugins();
