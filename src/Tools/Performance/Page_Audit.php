@@ -139,29 +139,36 @@ class Page_Audit
     {
         $links   = $dom->getElementsByTagName('link');
         $scripts = $dom->getElementsByTagName('script');
+        $images  = $dom->getElementsByTagName('img');
 
-        $head_css = 0;
+        $head_css  = 0;
+        $css_total = 0;
         foreach ($links as $link) {
             $rel = strtolower((string) $link->getAttribute('rel'));
             if ('stylesheet' !== $rel) {
                 continue;
             }
+            $css_total++;
             if ($this->in_head($link)) {
                 $head_css++;
             }
         }
 
+        $js_total  = 0;
         $sync_head = 0;
         foreach ($scripts as $script) {
             $src = (string) $script->getAttribute('src');
             if ('' === $src) {
                 continue; // inline.
             }
+            $js_total++;
             $is_async = $script->hasAttribute('async') || $script->hasAttribute('defer');
             if (! $is_async && $this->in_head($script)) {
                 $sync_head++;
             }
         }
+
+        $img_total = $images->length;
 
         $render_blocking = $head_css + $sync_head;
 
@@ -184,6 +191,15 @@ class Page_Audit
                 $render_blocking,
                 sprintf('%d render-blocking resources in <head> (%d CSS, %d sync JS).', $render_blocking, $head_css, $sync_head)
             );
+
+        $findings[] = Finding::make(
+            'asset_counts',
+            'assets',
+            'Asset counts',
+            'info',
+            ['css' => $css_total, 'js' => $js_total, 'images' => $img_total],
+            sprintf('%d CSS, %d JS, %d images referenced.', $css_total, $js_total, $img_total)
+        );
 
         return $findings;
     }

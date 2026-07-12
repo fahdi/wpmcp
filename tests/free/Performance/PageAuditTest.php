@@ -155,4 +155,20 @@ class PageAuditTest extends \WP_UnitTestCase
         $this->assertSame(6, $render_blocking['value']);
         $this->assertSame('warning', $render_blocking['status']);
     }
+
+    public function test_asset_counts_is_always_info_with_css_js_image_totals(): void
+    {
+        $body = '<html><head>'
+            . '<link rel="stylesheet" href="/a.css">'
+            . '<script src="/1.js"></script>'
+            . '</head><body>'
+            . '<img src="/1.jpg"><img src="/2.jpg">'
+            . '</body></html>';
+
+        $result       = $this->audit->analyze($this->fetched($body), false);
+        $asset_counts = $this->finding_of($result, 'asset_counts');
+
+        $this->assertSame('info', $asset_counts['status']);
+        $this->assertSame(['css' => 1, 'js' => 1, 'images' => 2], $asset_counts['value']);
+    }
 }
