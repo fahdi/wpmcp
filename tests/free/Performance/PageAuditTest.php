@@ -59,4 +59,17 @@ class PageAuditTest extends \WP_UnitTestCase
         $warn = $this->audit->analyze($this->fetched('<html></html>', [], 404), false);
         $this->assertSame('warning', $this->status_of($warn, 'http_status'));
     }
+
+    private function fetched_with_ms(string $body, int $ms): array
+    {
+        $fetched               = $this->fetched($body);
+        $fetched['response_ms'] = $ms;
+        return $fetched;
+    }
+
+    public function test_response_time_pass_at_or_under_800ms_warning_above(): void
+    {
+        $this->assertSame('pass', $this->status_of($this->audit->analyze($this->fetched_with_ms('<html></html>', 800), false), 'response_time'));
+        $this->assertSame('warning', $this->status_of($this->audit->analyze($this->fetched_with_ms('<html></html>', 801), false), 'response_time'));
+    }
 }

@@ -8,6 +8,8 @@ if (! defined('ABSPATH')) {
 
 class Page_Audit
 {
+    private const RESPONSE_WARN_MS = 800;
+
     /**
      * Parse a fetched struct into findings plus a page_fetch meta block. Pure.
      *
@@ -54,6 +56,19 @@ class Page_Audit
                 sprintf('Page returned HTTP %d.', $status),
                 'A non-200 status means the analyzed URL is redirecting or erroring; verify the target.'
             );
+
+        $ms         = (int) ($fetched['response_ms'] ?? 0);
+        $findings[] = ($ms > self::RESPONSE_WARN_MS)
+            ? Finding::make(
+                'response_time',
+                'page',
+                'Server response time',
+                'warning',
+                $ms,
+                sprintf('Full HTML response took %d ms.', $ms),
+                'Add page caching (a cache plugin or server cache) so HTML is served without a full PHP/DB render.'
+            )
+            : Finding::make('response_time', 'page', 'Server response time', 'pass', $ms, sprintf('Full HTML response took %d ms.', $ms));
 
         return ['findings' => $findings, 'page_fetch' => $page_fetch];
     }
