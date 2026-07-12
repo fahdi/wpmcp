@@ -8,11 +8,25 @@ if (! defined('ABSPATH')) {
 
 class Ability
 {
+    public bool $read_only_hint;
+    public bool $destructive_hint;
+    public bool $idempotent_hint;
+
     /**
      * $capability is the WordPress capability a caller must hold for this
      * ability's permission_callback to allow execution. It defaults to
      * 'edit_posts' so every existing ability keeps its original gate; only
      * sensitive tools (e.g. user management) pass a stronger capability.
+     *
+     * $read_only_hint, $destructive_hint, $idempotent_hint are the three MCP
+     * tool annotation booleans. When left null they are derived from
+     * $operation using the mapping documented in the governance spec:
+     *  - read:   read_only=true,  destructive=false, idempotent=true
+     *  - create: read_only=false, destructive=false, idempotent=false
+     *  - update: read_only=false, destructive=false, idempotent=true
+     *  - delete: read_only=false, destructive=true,  idempotent=false
+     * Callers that need to deviate from this default (e.g. an update that is
+     * actually an irreversible file overwrite) pass explicit booleans.
      */
     public function __construct(
         public string $name,
@@ -22,7 +36,13 @@ class Ability
         public $handler,
         public string $capability = 'edit_posts',
         public string $domain = 'content',
-        public string $operation = 'read'
+        public string $operation = 'read',
+        ?bool $read_only_hint = null,
+        ?bool $destructive_hint = null,
+        ?bool $idempotent_hint = null
     ) {
+        $this->read_only_hint   = $read_only_hint ?? ('read' === $operation);
+        $this->destructive_hint = $destructive_hint ?? ('delete' === $operation);
+        $this->idempotent_hint  = $idempotent_hint ?? in_array($operation, ['read', 'update'], true);
     }
 }
