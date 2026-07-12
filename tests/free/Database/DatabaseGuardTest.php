@@ -231,4 +231,25 @@ class DatabaseGuardTest extends \WP_UnitTestCase
 
         Database_Guard::set_no_backslash_escapes_override(null);
     }
+
+    /**
+     * Belt-and-suspenders: a stacked second statement hidden behind the same
+     * backslash-escape desync (the literal ends one character earlier than
+     * assumed under NO_BACKSLASH_ESCAPES, so the trailing ';' is live SQL,
+     * not string content) must be rejected even if sql_mode detection were
+     * to fail open (e.g. $wpdb unavailable/misdetected), because the guard
+     * does not rely solely on normalize_sql's literal parsing to find stacked
+     * statements: a raw scan independently looks for a live ';'.
+     */
+    public function test_rejects_stacked_statement_hidden_by_backslash_escape_desync(): void
+    {
+        $this->assertSame('multi_statement', $this->code("SELECT 'a\\'; DROP TABLE x -- '"));
+    }
+
+    /** A benign query containing a literal semicolon inside a normal string must still pass. */
+    public function test_allows_semicolon_inside_ordinary_string_literal(): void
+    {
+        $this->assertTrue($this->ok("SELECT 'a;b' AS x"));
+        $this->assertTrue($this->ok("SELECT * FROM wp_posts WHERE post_title = 'Hello; World'"));
+    }
 }

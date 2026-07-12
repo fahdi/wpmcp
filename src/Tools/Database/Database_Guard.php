@@ -169,12 +169,32 @@ class Database_Guard
             return new \WP_Error('file_access_blocked', 'File-access SQL (OUTFILE/DUMPFILE/LOAD_FILE) is not allowed.');
         }
 
+        // Raw, sql_mode-independent stacked-statement pre-scan. The guard
+        // does not rely solely on normalize_sql() (or on the driver) to
+        // reject a second statement: a literal-boundary desync between the
+        // guard and the live server (the same NO_BACKSLASH_ESCAPES class of
+        // bug fixed above, or any future normalize_sql regression) could
+        // otherwise hide a live ';' inside what the guard mistakes for
+        // string content. Normalize under BOTH escape assumptions and
+        // reject if either parse finds a non-trailing ';', so correctness
+        // does not depend on sql_mode detection having succeeded.
+        foreach ([false, true] as $assume_no_backslash_escapes) {
+            $probe = trim(self::normalize_sql($sql, $assume_no_backslash_escapes));
+            $probe = rtrim($probe, "; \t\r\n");
+            if (false !== strpos($probe, ';')) {
+                return new \WP_Error('multi_statement', 'Multiple SQL statements are not allowed.');
+            }
+        }
+
         $normalized = trim(self::normalize_sql($sql));
         if ('' === $normalized) {
             return new \WP_Error('empty_sql', 'Empty query.');
         }
 
         // Multi-statement: any ';' that isn't the sole trailing character.
+        // (Redundant with the raw pre-scan above for the sql_mode that is
+        // actually active; kept so the error still surfaces even if the
+        // pre-scan above is ever narrowed.)
         $without_trailing = rtrim($normalized, "; \t\r\n");
         if (false !== strpos($without_trailing, ';')) {
             return new \WP_Error('multi_statement', 'Multiple SQL statements are not allowed.');
