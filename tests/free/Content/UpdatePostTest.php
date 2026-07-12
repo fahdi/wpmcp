@@ -38,4 +38,10 @@ class UpdatePostTest extends \WP_UnitTestCase
         $this->expectException(\InvalidArgumentException::class);
         (new Update_Post())->handle(['post_id' => $id, 'meta' => ['_edit_lock' => '1']]);
     }
+
+    public function test_not_found_throws(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        (new Update_Post())->handle(['post_id' => 999999, 'title' => 'x']);
+    }
 }
