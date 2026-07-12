@@ -73,6 +73,7 @@ use WPMCP\Tools\Elementor\Get_Elementor_Data;
 use WPMCP\Tools\Elementor\Update_Element;
 use WPMCP\Tools\Elementor\Add_Widget;
 use WPMCP\Tools\Elementor\Remove_Element;
+use WPMCP\Tools\Elementor\Move_Element;
 use WPMCP\Tools\WooCommerce\List_Products;
 use WPMCP\Tools\WooCommerce\Get_Product;
 use WPMCP\Tools\WooCommerce\Create_Product;
@@ -1442,6 +1443,27 @@ final class Plugin
                 'required'   => [ 'post_id', 'element_id' ],
             ],
             [$remove_element, 'handle'],
+            'edit_posts',
+            'elementor',
+            'update'
+        ));
+
+        $move_element = new Move_Element();
+
+        $registrar->register(new Ability(
+            'wpmcp/move-element',
+            'pro',
+            'Reparent an element by id: remove it from its current location and append it as a child of a new parent element in the page\'s _elementor_data. Refuses moves into the element itself or one of its own descendants. Undoable via rollback-operation since _elementor_data is ordinary postmeta captured by the existing post snapshot',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'post_id'    => [ 'type' => 'integer' ],
+                    'element_id' => [ 'type' => 'string' ],
+                    'parent_id'  => [ 'type' => 'string' ],
+                ],
+                'required'   => [ 'post_id', 'element_id', 'parent_id' ],
+            ],
+            [$move_element, 'handle'],
             'edit_posts',
             'elementor',
             'update'

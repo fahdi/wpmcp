@@ -8,6 +8,7 @@ use WPMCP\Tools\Elementor\Get_Elementor_Data;
 use WPMCP\Tools\Elementor\Update_Element;
 use WPMCP\Tools\Elementor\Add_Widget;
 use WPMCP\Tools\Elementor\Remove_Element;
+use WPMCP\Tools\Elementor\Move_Element;
 
 /**
  * Verifies the get-elementor-data ability is declared as pro-tier and that
@@ -192,5 +193,48 @@ class ElementorDeepAbilitiesRegistrationTest extends \WP_UnitTestCase
 
         $names = array_map(fn($a) => $a->name, $registrar->all());
         $this->assertContains('wpmcp/remove-element', $names);
+    }
+
+    private function make_move_element_ability(): Ability
+    {
+        return new Ability(
+            'wpmcp/move-element',
+            'pro',
+            'Reparent an element by id.',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'post_id'    => ['type' => 'integer'],
+                    'element_id' => ['type' => 'string'],
+                    'parent_id'  => ['type' => 'string'],
+                ],
+                'required'   => ['post_id', 'element_id', 'parent_id'],
+            ],
+            [new Move_Element(), 'handle'],
+            'edit_posts',
+            'elementor',
+            'update'
+        );
+    }
+
+    public function test_registrar_skips_move_element_when_free(): void
+    {
+        Gate::set_pro_for_tests(false);
+
+        $registrar = new Registrar();
+        $registrar->register($this->make_move_element_ability());
+
+        $this->assertCount(0, $registrar->all());
+    }
+
+    public function test_registrar_keeps_move_element_when_pro(): void
+    {
+        Gate::set_pro_for_tests(true);
+
+        $registrar = new Registrar();
+        $registrar->register($this->make_move_element_ability());
+
+        $names = array_map(fn($a) => $a->name, $registrar->all());
+        $this->assertContains('wpmcp/move-element', $names);
     }
 }
