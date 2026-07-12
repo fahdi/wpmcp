@@ -32,4 +32,27 @@ class SearchFilesTest extends \WP_UnitTestCase
         $this->assertSame($this->rel_dir . '/a.php', $result['matches'][0]['file']);
         $this->assertSame(2, $result['matches'][0]['line']);
     }
+
+    public function test_requires_a_non_empty_query(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        (new Search_Files())->handle(['path' => $this->rel_dir]);
+    }
+
+    public function test_extensions_filter_limits_which_files_are_searched(): void
+    {
+        file_put_contents(ABSPATH . $this->rel_dir . '/c.txt', "needle in a txt file\n");
+
+        $result = (new Search_Files())->handle([
+            'query'      => 'needle',
+            'path'       => $this->rel_dir,
+            'extensions' => ['php'],
+        ]);
+
+        $files = array_column($result['matches'], 'file');
+        $this->assertContains($this->rel_dir . '/a.php', $files);
+        $this->assertNotContains($this->rel_dir . '/c.txt', $files);
+
+        @unlink(ABSPATH . $this->rel_dir . '/c.txt');
+    }
 }
