@@ -21,6 +21,10 @@ use WPMCP\Tools\Content\Update_Post;
 use WPMCP\Tools\Content\Delete_Post;
 use WPMCP\Tools\Content\List_Posts;
 use WPMCP\Tools\Content\Set_Post_Terms;
+use WPMCP\Tools\Media\Get_Media;
+use WPMCP\Tools\Media\Update_Media;
+use WPMCP\Tools\Media\Delete_Media;
+use WPMCP\Tools\Media\Sideload_Image;
 
 if (! defined('ABSPATH') && ! defined('WPMCP_TESTING')) {
     exit;
@@ -293,6 +297,75 @@ final class Plugin
                 'required'   => [ 'post_id', 'taxonomy', 'terms' ],
             ],
             [$set_post_terms, 'handle']
+        ));
+
+        $get_media      = new Get_Media();
+        $update_media   = new Update_Media();
+        $delete_media   = new Delete_Media();
+        $sideload_image = new Sideload_Image();
+
+        $registrar->register(new Ability(
+            'wpmcp/get-media',
+            'free',
+            'Read full detail for a Media Library attachment: title, URL, every registered image size, dimensions, mime type, alt text, caption, and description',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'media_id' => [ 'type' => 'integer' ],
+                ],
+                'required'   => [ 'media_id' ],
+            ],
+            [$get_media, 'handle']
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/update-media',
+            'free',
+            'Update a Media Library attachment\'s title, alt text, caption, and/or description',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'media_id'    => [ 'type' => 'integer' ],
+                    'title'       => [ 'type' => 'string' ],
+                    'alt'         => [ 'type' => 'string' ],
+                    'caption'     => [ 'type' => 'string' ],
+                    'description' => [ 'type' => 'string' ],
+                    'session_id'  => [ 'type' => 'string' ],
+                ],
+                'required'   => [ 'media_id' ],
+            ],
+            [$update_media, 'handle']
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/delete-media',
+            'free',
+            'Delete a Media Library attachment. Disabled by default (site must opt in via the wpmcp_enable_delete_media filter) and requires confirm:true. force:true permanently deletes, routed through the safety snapshot so it can be rolled back',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'media_id'   => [ 'type' => 'integer' ],
+                    'confirm'    => [ 'type' => 'boolean' ],
+                    'force'      => [ 'type' => 'boolean' ],
+                    'session_id' => [ 'type' => 'string' ],
+                ],
+                'required'   => [ 'media_id', 'confirm' ],
+            ],
+            [$delete_media, 'handle']
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/sideload-image',
+            'free',
+            'Download an image from a URL and add it to the Media Library as a new attachment',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'url'         => [ 'type' => 'string' ],
+                    'post_id'     => [ 'type' => 'integer' ],
+                    'description' => [ 'type' => 'string' ],
+                    'alt'         => [ 'type' => 'string' ],
+                ],
+                'required'   => [ 'url' ],
+            ],
+            [$sideload_image, 'handle']
         ));
     }
 }
