@@ -72,4 +72,14 @@ class PageAuditTest extends \WP_UnitTestCase
         $this->assertSame('pass', $this->status_of($this->audit->analyze($this->fetched_with_ms('<html></html>', 800), false), 'response_time'));
         $this->assertSame('warning', $this->status_of($this->audit->analyze($this->fetched_with_ms('<html></html>', 801), false), 'response_time'));
     }
+
+    public function test_html_size_pass_at_or_under_threshold_warning_above(): void
+    {
+        // Reference threshold: 512000 bytes (500 KB).
+        $pass = $this->audit->analyze($this->fetched(str_repeat('a', 512000)), false);
+        $this->assertSame('pass', $this->status_of($pass, 'html_size'));
+
+        $warn = $this->audit->analyze($this->fetched(str_repeat('a', 512001)), false);
+        $this->assertSame('warning', $this->status_of($warn, 'html_size'));
+    }
 }

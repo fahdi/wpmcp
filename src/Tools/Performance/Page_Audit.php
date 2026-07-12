@@ -9,6 +9,7 @@ if (! defined('ABSPATH')) {
 class Page_Audit
 {
     private const RESPONSE_WARN_MS = 800;
+    private const HTML_WARN_BYTES  = 512000; // 500 KB of HTML.
 
     /**
      * Parse a fetched struct into findings plus a page_fetch meta block. Pure.
@@ -69,6 +70,19 @@ class Page_Audit
                 'Add page caching (a cache plugin or server cache) so HTML is served without a full PHP/DB render.'
             )
             : Finding::make('response_time', 'page', 'Server response time', 'pass', $ms, sprintf('Full HTML response took %d ms.', $ms));
+
+        $bytes      = (int) ($fetched['total_bytes'] ?? 0);
+        $findings[] = ($bytes > self::HTML_WARN_BYTES)
+            ? Finding::make(
+                'html_size',
+                'page',
+                'HTML size',
+                'warning',
+                $bytes,
+                sprintf('The HTML document is %d KB.', (int) round($bytes / 1024)),
+                'Large HTML often means inlined data or huge page builders; trim markup and avoid inlining big payloads.'
+            )
+            : Finding::make('html_size', 'page', 'HTML size', 'pass', $bytes, sprintf('The HTML document is %d KB.', (int) round($bytes / 1024)));
 
         return ['findings' => $findings, 'page_fetch' => $page_fetch];
     }
