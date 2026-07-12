@@ -115,8 +115,12 @@ The same endpoint works with Cursor, Claude Desktop, and any MCP-compatible clie
 | `delete-post` | write (safe on force) | Trash a post by default, or permanently delete with `force: true` |
 | `list-posts` | read | Search/list posts by type, status, search text, author, or parent |
 | `set-post-terms` | write (safe) | Assign taxonomy terms to a post: replace, append, or remove |
+| `get-media` | read | Read a Media Library attachment's full detail: sizes, dimensions, metadata, alt text, caption, description |
+| `update-media` | write (safe) | Update an attachment's title, alt text, caption, and/or description |
+| `delete-media` | write (safe) | Delete a Media Library attachment. Disabled by default, requires `confirm: true` |
+| `sideload-image` | write | Download an image from a URL into the Media Library as a new attachment |
 
-Every write tool is wrapped in the safety engine. Reads and rollbacks are gated by the `edit_posts` capability.
+Every write tool is wrapped in the safety engine, except `create-post` and `sideload-image`: both only ever create brand new objects, so there is nothing pre-existing to snapshot or roll back. Reads and rollbacks are gated by the `edit_posts` capability. `delete-media` additionally requires a site to opt in via the `wpmcp_enable_delete_media` filter before it will run at all.
 
 ## Free vs Pro
 
