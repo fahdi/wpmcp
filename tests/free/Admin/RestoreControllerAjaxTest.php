@@ -14,6 +14,36 @@ class RestoreControllerAjaxTest extends \WP_Ajax_UnitTestCase
     {
         parent::setUp();
         Snapshot_Store::install();
+        add_filter('pre_http_request', [$this, 'stub_version_check'], 10, 3);
+    }
+
+    protected function tearDown(): void
+    {
+        remove_filter('pre_http_request', [$this, 'stub_version_check'], 10);
+        parent::tearDown();
+    }
+
+    /**
+     * The ajax test harness runs a full admin-ajax request cycle, which can
+     * trigger WordPress core's wp_version_check() to api.wordpress.org.
+     * That is a real outbound HTTP call, and it can flake or fail in a CI
+     * environment without reliable network access. Preempt only that
+     * specific request with a canned, harmless response so the test never
+     * makes a real network call; every other HTTP request is left alone.
+     */
+    public function stub_version_check($preempt, $parsed_args, $url)
+    {
+        if (false === strpos($url, 'api.wordpress.org') || false === strpos($url, 'version-check')) {
+            return $preempt;
+        }
+
+        return [
+            'headers'  => [],
+            'body'     => wp_json_encode(['offers' => []]),
+            'response' => ['code' => 200, 'message' => 'OK'],
+            'cookies'  => [],
+            'filename' => null,
+        ];
     }
 
     /**
