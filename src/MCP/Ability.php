@@ -20,7 +20,9 @@ class Ability
         public string $description,
         public array $input_schema,
         public $handler,
-        public string $capability = 'edit_posts'
+        public string $capability = 'edit_posts',
+        public string $domain = 'content',
+        public string $operation = 'read'
     ) {
     }
 }
