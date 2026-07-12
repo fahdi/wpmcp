@@ -171,4 +171,29 @@ class PageAuditTest extends \WP_UnitTestCase
         $this->assertSame('info', $asset_counts['status']);
         $this->assertSame(['css' => 1, 'js' => 1, 'images' => 2], $asset_counts['value']);
     }
+
+    public function test_lazy_loading_flags_non_lazy_images(): void
+    {
+        $body = '<html><body>'
+            . '<img src="/1.jpg"><img src="/2.jpg" loading="lazy"><img src="/3.jpg">'
+            . '</body></html>';
+
+        $result = $this->audit->analyze($this->fetched($body), false);
+        $lazy   = $this->finding_of($result, 'image_lazy_loading');
+
+        $this->assertNotNull($lazy);
+        $this->assertSame(2, $lazy['value']); // two images without loading="lazy".
+        $this->assertSame('info', $lazy['status']);
+    }
+
+    public function test_lazy_loading_passes_when_all_images_are_lazy(): void
+    {
+        $body = '<html><body><img src="/1.jpg" loading="lazy"></body></html>';
+
+        $result = $this->audit->analyze($this->fetched($body), false);
+        $lazy   = $this->finding_of($result, 'image_lazy_loading');
+
+        $this->assertSame(0, $lazy['value']);
+        $this->assertSame('pass', $lazy['status']);
+    }
 }

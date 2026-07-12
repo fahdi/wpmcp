@@ -168,7 +168,14 @@ class Page_Audit
             }
         }
 
-        $img_total = $images->length;
+        $img_total = 0;
+        $not_lazy  = 0;
+        foreach ($images as $img) {
+            $img_total++;
+            if ('lazy' !== strtolower((string) $img->getAttribute('loading'))) {
+                $not_lazy++;
+            }
+        }
 
         $render_blocking = $head_css + $sync_head;
 
@@ -200,6 +207,18 @@ class Page_Audit
             ['css' => $css_total, 'js' => $js_total, 'images' => $img_total],
             sprintf('%d CSS, %d JS, %d images referenced.', $css_total, $js_total, $img_total)
         );
+
+        $findings[] = ($not_lazy > 0)
+            ? Finding::make(
+                'image_lazy_loading',
+                'assets',
+                'Image lazy-loading',
+                'info',
+                $not_lazy,
+                sprintf('%d of %d images lack loading="lazy".', $not_lazy, $img_total),
+                'Add loading="lazy" to below-the-fold images to defer offscreen downloads.'
+            )
+            : Finding::make('image_lazy_loading', 'assets', 'Image lazy-loading', 'pass', 0, 'All images use lazy-loading (or there are none).');
 
         return $findings;
     }
