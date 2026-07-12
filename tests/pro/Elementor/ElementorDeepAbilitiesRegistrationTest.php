@@ -7,6 +7,7 @@ use WPMCP\Pro\Gate;
 use WPMCP\Tools\Elementor\Get_Elementor_Data;
 use WPMCP\Tools\Elementor\Update_Element;
 use WPMCP\Tools\Elementor\Add_Widget;
+use WPMCP\Tools\Elementor\Remove_Element;
 
 /**
  * Verifies the get-elementor-data ability is declared as pro-tier and that
@@ -149,5 +150,47 @@ class ElementorDeepAbilitiesRegistrationTest extends \WP_UnitTestCase
 
         $names = array_map(fn($a) => $a->name, $registrar->all());
         $this->assertContains('wpmcp/add-widget', $names);
+    }
+
+    private function make_remove_element_ability(): Ability
+    {
+        return new Ability(
+            'wpmcp/remove-element',
+            'pro',
+            'Remove an element (and its children) by id.',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'post_id'    => ['type' => 'integer'],
+                    'element_id' => ['type' => 'string'],
+                ],
+                'required'   => ['post_id', 'element_id'],
+            ],
+            [new Remove_Element(), 'handle'],
+            'edit_posts',
+            'elementor',
+            'update'
+        );
+    }
+
+    public function test_registrar_skips_remove_element_when_free(): void
+    {
+        Gate::set_pro_for_tests(false);
+
+        $registrar = new Registrar();
+        $registrar->register($this->make_remove_element_ability());
+
+        $this->assertCount(0, $registrar->all());
+    }
+
+    public function test_registrar_keeps_remove_element_when_pro(): void
+    {
+        Gate::set_pro_for_tests(true);
+
+        $registrar = new Registrar();
+        $registrar->register($this->make_remove_element_ability());
+
+        $names = array_map(fn($a) => $a->name, $registrar->all());
+        $this->assertContains('wpmcp/remove-element', $names);
     }
 }

@@ -72,6 +72,7 @@ use WPMCP\Tools\Elementor\Get_Widget_Schema;
 use WPMCP\Tools\Elementor\Get_Elementor_Data;
 use WPMCP\Tools\Elementor\Update_Element;
 use WPMCP\Tools\Elementor\Add_Widget;
+use WPMCP\Tools\Elementor\Remove_Element;
 use WPMCP\Tools\WooCommerce\List_Products;
 use WPMCP\Tools\WooCommerce\Get_Product;
 use WPMCP\Tools\WooCommerce\Create_Product;
@@ -1421,6 +1422,26 @@ final class Plugin
                 'required'   => [ 'post_id', 'parent_id', 'widget_type' ],
             ],
             [$add_widget, 'handle'],
+            'edit_posts',
+            'elementor',
+            'update'
+        ));
+
+        $remove_element = new Remove_Element();
+
+        $registrar->register(new Ability(
+            'wpmcp/remove-element',
+            'pro',
+            'Remove an element (and its children) from a page\'s _elementor_data by id. Undoable via rollback-operation since _elementor_data is ordinary postmeta captured by the existing post snapshot',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'post_id'    => [ 'type' => 'integer' ],
+                    'element_id' => [ 'type' => 'string' ],
+                ],
+                'required'   => [ 'post_id', 'element_id' ],
+            ],
+            [$remove_element, 'handle'],
             'edit_posts',
             'elementor',
             'update'
