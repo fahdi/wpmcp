@@ -8,6 +8,9 @@ use WPMCP\MCP\Ability;
 use WPMCP\MCP\Registrar;
 use WPMCP\Tools\Get_Page;
 use WPMCP\Tools\Update_Blocks;
+use WPMCP\Tools\List_Operations;
+use WPMCP\Tools\Rollback_Operation;
+use WPMCP\Tools\Rollback_Session;
 
 if (! defined('ABSPATH') && ! defined('WPMCP_TESTING')) {
     exit;
@@ -36,9 +39,12 @@ final class Plugin
 
     public function register_abilities(): void
     {
-        $registrar     = new Registrar();
-        $get_page      = new Get_Page();
-        $update_blocks = new Update_Blocks();
+        $registrar          = new Registrar();
+        $get_page           = new Get_Page();
+        $update_blocks      = new Update_Blocks();
+        $list_operations    = new List_Operations();
+        $rollback_operation = new Rollback_Operation();
+        $rollback_session   = new Rollback_Session();
         $registrar->register(new Ability(
             'wpmcp/get-page',
             'free',
@@ -66,6 +72,44 @@ final class Plugin
                 'required'   => [ 'id', 'blocks' ],
             ],
             [$update_blocks, 'handle']
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/list-operations',
+            'free',
+            'List recent safety snapshot operations',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'limit' => [ 'type' => 'integer' ],
+                ],
+            ],
+            [$list_operations, 'handle']
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/rollback-operation',
+            'free',
+            'Undo a single operation by restoring its pre-change snapshot',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'operation_id' => [ 'type' => 'string' ],
+                ],
+                'required'   => [ 'operation_id' ],
+            ],
+            [$rollback_operation, 'handle']
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/rollback-session',
+            'free',
+            'Undo all operations from a session by restoring each object\'s pre-session snapshot',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'session_id' => [ 'type' => 'string' ],
+                ],
+                'required'   => [ 'session_id' ],
+            ],
+            [$rollback_session, 'handle']
         ));
     }
 }
