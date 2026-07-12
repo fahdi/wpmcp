@@ -22,7 +22,44 @@ class Snapshot
         if ('option' === $object_type) {
             return self::capture_option((string) $object_id);
         }
+        if ('user' === $object_type) {
+            return self::capture_user((int) $object_id);
+        }
         return self::capture_post($object_id);
+    }
+
+    /**
+     * Capture a user's editable profile so Update_User's write can be undone.
+     *
+     * Only the columns wp_update_user() can restore are kept, plus the full
+     * usermeta map (mirroring the post path's "full row, not a hand-picked
+     * subset" stance so a rollback is exact even for meta the mutation added).
+     * The password hash (user_pass) is deliberately NEVER captured: there is
+     * no update-password tool, so a restore never needs it, and keeping it out
+     * of the snapshot blob means the stored secret can never leak. There is
+     * also no delete-user tool, so unlike posts there is no force-delete /
+     * resurrection case to plan for here: the user always still exists at
+     * rollback time and is restored in place.
+     */
+    private static function capture_user(int $user_id): array
+    {
+        $user = get_userdata($user_id);
+        return [
+            'object_type' => 'user',
+            'object_id'   => $user_id,
+            'data'        => [
+                'fields' => $user ? [
+                    'display_name' => $user->display_name,
+                    'user_email'   => $user->user_email,
+                    'user_url'     => $user->user_url,
+                    'nickname'     => $user->nickname,
+                    'first_name'   => $user->first_name,
+                    'last_name'    => $user->last_name,
+                    'description'  => $user->description,
+                ] : null,
+                'meta'   => $user ? get_user_meta($user_id) : [],
+            ],
+        ];
     }
 
     private static function capture_post(int $object_id): array

@@ -27,6 +27,10 @@ use WPMCP\Tools\Media\Delete_Media;
 use WPMCP\Tools\Media\Sideload_Image;
 use WPMCP\Tools\Settings\Get_Settings;
 use WPMCP\Tools\Settings\Update_Settings;
+use WPMCP\Tools\Users\List_Users;
+use WPMCP\Tools\Users\Get_User;
+use WPMCP\Tools\Users\Create_User;
+use WPMCP\Tools\Users\Update_User;
 
 if (! defined('ABSPATH') && ! defined('WPMCP_TESTING')) {
     exit;
@@ -398,6 +402,83 @@ final class Plugin
                 'required'   => [ 'settings' ],
             ],
             [$update_settings, 'handle']
+        ));
+
+        $list_users  = new List_Users();
+        $get_user    = new Get_User();
+        $create_user = new Create_User();
+        $update_user = new Update_User();
+
+        $registrar->register(new Ability(
+            'wpmcp/list-users',
+            'free',
+            'List WordPress users as safe summary rows (id, username, display name, email, roles, registration date). Never returns password hashes or other secrets',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'role'     => [ 'type' => 'string' ],
+                    'search'   => [ 'type' => 'string' ],
+                    'per_page' => [ 'type' => 'integer' ],
+                    'page'     => [ 'type' => 'integer' ],
+                    'orderby'  => [ 'type' => 'string' ],
+                    'order'    => [ 'type' => 'string' ],
+                ],
+            ],
+            [$list_users, 'handle']
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/get-user',
+            'free',
+            'Read one user\'s profile detail, including an is_admin flag derived from live capabilities. Never returns the password hash',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'id' => [ 'type' => 'integer' ],
+                ],
+                'required'   => [ 'id' ],
+            ],
+            [$get_user, 'handle']
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/create-user',
+            'free',
+            'Create a new non-admin user. Auto-generates a strong password (never returned) and emails the new user so they can set their own. Rejects admin and unknown roles; defaults to subscriber',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'username'     => [ 'type' => 'string' ],
+                    'email'        => [ 'type' => 'string' ],
+                    'role'         => [ 'type' => 'string' ],
+                    'display_name' => [ 'type' => 'string' ],
+                    'first_name'   => [ 'type' => 'string' ],
+                    'last_name'    => [ 'type' => 'string' ],
+                ],
+                'required'   => [ 'username', 'email' ],
+            ],
+            [$create_user, 'handle'],
+            'create_users'
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/update-user',
+            'free',
+            'Update a non-admin user\'s profile fields (display name, email, url, nickname, first/last name, description). Refuses admin-capable users. Never changes role or password. Snapshotted so the change can be rolled back',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'id'           => [ 'type' => 'integer' ],
+                    'display_name' => [ 'type' => 'string' ],
+                    'email'        => [ 'type' => 'string' ],
+                    'url'          => [ 'type' => 'string' ],
+                    'nickname'     => [ 'type' => 'string' ],
+                    'first_name'   => [ 'type' => 'string' ],
+                    'last_name'    => [ 'type' => 'string' ],
+                    'description'  => [ 'type' => 'string' ],
+                    'session_id'   => [ 'type' => 'string' ],
+                ],
+                'required'   => [ 'id' ],
+            ],
+            [$update_user, 'handle'],
+            'edit_users'
         ));
     }
 }

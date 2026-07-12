@@ -59,6 +59,8 @@ class Rollback_Service
         if ('option' === $snapshot['object_type']) {
             return 'option:' . $snapshot['data']['name'];
         }
+        // Users, like posts, are identified by an int object_id, so the raw
+        // object_type:object_id key is already stable and distinct.
         return $snapshot['object_type'] . ':' . $snapshot['object_id'];
     }
 
@@ -77,6 +79,42 @@ class Rollback_Service
             update_option($name, $snapshot['data']['value']);
         } else {
             delete_option($name);
+        }
+    }
+
+    /**
+     * Restore a user's editable profile to its pre-mutation state.
+     *
+     * Update_User only ever changes profile fields (never role, never
+     * password), and there is no delete-user tool, so the user always still
+     * exists here and is restored in place: the captured columns go back via
+     * wp_update_user() and the usermeta is reconciled the same way the post
+     * path reconciles post_meta (purge keys the mutation added, then re-write
+     * every captured key/value exactly). user_pass is never in the snapshot,
+     * so it is never touched.
+     */
+    private static function apply_user_snapshot(array $snapshot): void
+    {
+        $user_id = (int) $snapshot['object_id'];
+
+        if (! empty($snapshot['data']['fields'])) {
+            wp_update_user(array_merge(['ID' => $user_id], $snapshot['data']['fields']));
+        }
+
+        $snapshotted_meta = (array) $snapshot['data']['meta'];
+        $current_meta     = get_user_meta($user_id);
+
+        // Purge any usermeta key that didn't exist at snapshot time.
+        foreach (array_keys(array_diff_key($current_meta, $snapshotted_meta)) as $key) {
+            delete_user_meta($user_id, $key);
+        }
+
+        // Restore snapshotted keys/values exactly as captured.
+        foreach ($snapshotted_meta as $key => $values) {
+            delete_user_meta($user_id, $key);
+            foreach ((array) $values as $v) {
+                add_user_meta($user_id, $key, maybe_unserialize($v));
+            }
         }
     }
 
@@ -161,6 +199,11 @@ class Rollback_Service
     {
         if ('option' === $snapshot['object_type']) {
             self::apply_option_snapshot($snapshot);
+            return;
+        }
+
+        if ('user' === $snapshot['object_type']) {
+            self::apply_user_snapshot($snapshot);
             return;
         }
 

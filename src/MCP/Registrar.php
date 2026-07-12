@@ -26,7 +26,7 @@ class Registrar
                 'category'            => 'wpmcp',
                 'input_schema'        => $a->input_schema,
                 'execute_callback'    => $a->handler,
-                'permission_callback' => fn() => current_user_can('edit_posts'),
+                'permission_callback' => fn() => current_user_can($a->capability),
             ]);
         }
     }
