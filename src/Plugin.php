@@ -60,6 +60,17 @@ use WPMCP\Tools\Filesystem\Write_File;
 use WPMCP\Tools\Filesystem\Edit_File;
 use WPMCP\Tools\Filesystem\Delete_File;
 use WPMCP\Tools\Performance\Analyze_Performance;
+use WPMCP\Tools\WooCommerce\List_Products;
+use WPMCP\Tools\WooCommerce\Get_Product;
+use WPMCP\Tools\WooCommerce\Create_Product;
+use WPMCP\Tools\WooCommerce\Update_Product;
+use WPMCP\Tools\WooCommerce\Delete_Product;
+use WPMCP\Tools\WooCommerce\List_Product_Categories;
+use WPMCP\Tools\WooCommerce\List_Orders;
+use WPMCP\Tools\WooCommerce\Get_Order;
+use WPMCP\Tools\WooCommerce\Update_Order_Status;
+use WPMCP\Tools\WooCommerce\Add_Order_Note;
+use WPMCP\Tools\WooCommerce\Get_Sales_Report;
 
 if (! defined('ABSPATH') && ! defined('WPMCP_TESTING')) {
     exit;
@@ -979,6 +990,218 @@ final class Plugin
             ],
             [$analyze_performance, 'handle'],
             'manage_options'
+        ));
+
+        $this->register_woocommerce_abilities($registrar);
+    }
+
+    /**
+     * Register the WooCommerce store tools as free-tier abilities.
+     *
+     * These are registered unconditionally (matching every other tool group):
+     * a caller only reaches a handler by invoking the ability, and each handler
+     * uses WooCommerce functions that are present whenever WooCommerce is
+     * active. Product mutations reuse the existing 'post' snapshot object type
+     * (a product is a 'product' post), and update-order-status uses the
+     * additive 'wc_order' snapshot type, so both are undoable through the same
+     * engine. Writes require manage_woocommerce; order writes require
+     * edit_shop_orders. The destructive delete-product tool is disabled by
+     * default behind the wpmcp_enable_delete_product filter and needs confirm.
+     */
+    private function register_woocommerce_abilities(Registrar $registrar): void
+    {
+        $list_products           = new List_Products();
+        $get_product             = new Get_Product();
+        $create_product          = new Create_Product();
+        $update_product          = new Update_Product();
+        $delete_product          = new Delete_Product();
+        $list_product_categories = new List_Product_Categories();
+        $list_orders             = new List_Orders();
+        $get_order               = new Get_Order();
+        $update_order_status     = new Update_Order_Status();
+        $add_order_note          = new Add_Order_Note();
+        $get_sales_report        = new Get_Sales_Report();
+
+        $registrar->register(new Ability(
+            'wpmcp/list-products',
+            'free',
+            'List WooCommerce products as safe summary rows (id, name, sku, price, stock status), filterable by search, status, type, or category, with paging',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'search'   => [ 'type' => 'string' ],
+                    'status'   => [ 'type' => 'string' ],
+                    'type'     => [ 'type' => 'string' ],
+                    'category' => [ 'type' => 'string' ],
+                    'per_page' => [ 'type' => 'integer' ],
+                    'page'     => [ 'type' => 'integer' ],
+                ],
+            ],
+            [$list_products, 'handle']
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/get-product',
+            'free',
+            'Read full detail for one WooCommerce product (prices, stock, description, categories, tags)',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'id' => [ 'type' => 'integer' ],
+                ],
+                'required'   => [ 'id' ],
+            ],
+            [$get_product, 'handle']
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/create-product',
+            'free',
+            'Create a simple WooCommerce product via the CRUD layer. Creation has no prior state to snapshot; a mistaken product can be removed with delete-product',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'name'              => [ 'type' => 'string' ],
+                    'regular_price'     => [ 'type' => 'string' ],
+                    'sale_price'        => [ 'type' => 'string' ],
+                    'sku'               => [ 'type' => 'string' ],
+                    'description'       => [ 'type' => 'string' ],
+                    'short_description' => [ 'type' => 'string' ],
+                    'status'            => [ 'type' => 'string' ],
+                    'manage_stock'      => [ 'type' => 'boolean' ],
+                    'stock_quantity'    => [ 'type' => 'integer' ],
+                ],
+                'required'   => [ 'name' ],
+            ],
+            [$create_product, 'handle'],
+            'manage_woocommerce'
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/update-product',
+            'free',
+            'Update a WooCommerce product\'s fields (price, stock, description, etc.). A product is a post, so this is snapshotted via object_type post and rollback-operation restores the prior price and stock exactly',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'id'                => [ 'type' => 'integer' ],
+                    'name'              => [ 'type' => 'string' ],
+                    'regular_price'     => [ 'type' => 'string' ],
+                    'sale_price'        => [ 'type' => 'string' ],
+                    'sku'               => [ 'type' => 'string' ],
+                    'description'       => [ 'type' => 'string' ],
+                    'short_description' => [ 'type' => 'string' ],
+                    'status'            => [ 'type' => 'string' ],
+                    'manage_stock'      => [ 'type' => 'boolean' ],
+                    'stock_quantity'    => [ 'type' => 'integer' ],
+                    'session_id'        => [ 'type' => 'string' ],
+                ],
+                'required'   => [ 'id' ],
+            ],
+            [$update_product, 'handle'],
+            'manage_woocommerce'
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/delete-product',
+            'free',
+            'Delete a WooCommerce product (trash by default, force for permanent). Disabled by default (site must opt in via the wpmcp_enable_delete_product filter) and requires confirm:true. Snapshotted so it can be rolled back: force-delete resurrects the product at its original id with its price, stock, and terms',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'id'         => [ 'type' => 'integer' ],
+                    'confirm'    => [ 'type' => 'boolean' ],
+                    'force'      => [ 'type' => 'boolean' ],
+                    'session_id' => [ 'type' => 'string' ],
+                ],
+                'required'   => [ 'id', 'confirm' ],
+            ],
+            [$delete_product, 'handle'],
+            'manage_woocommerce'
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/list-product-categories',
+            'free',
+            'List WooCommerce product categories (the product_cat taxonomy) as summary rows (id, name, slug, parent, count)',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'hide_empty' => [ 'type' => 'boolean' ],
+                ],
+            ],
+            [$list_product_categories, 'handle']
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/list-orders',
+            'free',
+            'List WooCommerce orders as safe summary rows (id, number, status, total, currency, date), filterable by status and customer, with paging. HPOS- and CPT-safe',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'status'      => [ 'type' => 'string' ],
+                    'customer_id' => [ 'type' => 'integer' ],
+                    'per_page'    => [ 'type' => 'integer' ],
+                    'page'        => [ 'type' => 'integer' ],
+                ],
+            ],
+            [$list_orders, 'handle'],
+            'edit_shop_orders'
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/get-order',
+            'free',
+            'Read full detail for one WooCommerce order (status, billing email, payment method, line items, customer note). HPOS- and CPT-safe',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'id' => [ 'type' => 'integer' ],
+                ],
+                'required'   => [ 'id' ],
+            ],
+            [$get_order, 'handle'],
+            'edit_shop_orders'
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/update-order-status',
+            'free',
+            'Change a WooCommerce order\'s status, validated against the store\'s registered statuses. Snapshotted via the wc_order object type so rollback-operation restores the prior status exactly. HPOS- and CPT-safe',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'id'         => [ 'type' => 'integer' ],
+                    'status'     => [ 'type' => 'string' ],
+                    'session_id' => [ 'type' => 'string' ],
+                ],
+                'required'   => [ 'id', 'status' ],
+            ],
+            [$update_order_status, 'handle'],
+            'edit_shop_orders'
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/add-order-note',
+            'free',
+            'Add an internal or customer-facing note to a WooCommerce order. Additive only; nothing to roll back',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'id'            => [ 'type' => 'integer' ],
+                    'note'          => [ 'type' => 'string' ],
+                    'customer_note' => [ 'type' => 'boolean' ],
+                ],
+                'required'   => [ 'id', 'note' ],
+            ],
+            [$add_order_note, 'handle'],
+            'edit_shop_orders'
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/get-sales-report',
+            'free',
+            'Read-only sales summary over a date range: order count, gross sales, items sold, and top products by quantity. Aggregated over wc_get_orders() (HPOS- and CPT-safe)',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'date_from' => [ 'type' => 'string' ],
+                    'date_to'   => [ 'type' => 'string' ],
+                ],
+            ],
+            [$get_sales_report, 'handle'],
+            'manage_woocommerce'
         ));
     }
 }
