@@ -41,6 +41,12 @@ class UpdateMediaTest extends \WP_UnitTestCase
         (new Update_Media())->handle(['media_id' => 999999, 'alt' => 'x']);
     }
 
+    public function test_requires_media_id(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        (new Update_Media())->handle(['alt' => 'x']);
+    }
+
     public function test_rejects_non_attachment(): void
     {
         $id = self::factory()->post->create();

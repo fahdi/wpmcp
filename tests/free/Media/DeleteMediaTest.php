@@ -47,6 +47,14 @@ class DeleteMediaTest extends \WP_UnitTestCase
         (new Delete_Media())->handle(['media_id' => 999999, 'confirm' => true]);
     }
 
+    public function test_requires_media_id_when_enabled(): void
+    {
+        add_filter('wpmcp_enable_delete_media', '__return_true');
+
+        $this->expectException(\InvalidArgumentException::class);
+        (new Delete_Media())->handle(['confirm' => true]);
+    }
+
     /**
      * WordPress bypasses Trash for attachments unless MEDIA_TRASH is
      * defined truthy, which the default test environment does not define.

@@ -46,6 +46,12 @@ class GetMediaTest extends \WP_UnitTestCase
         (new Get_Media())->handle(['media_id' => 999999]);
     }
 
+    public function test_requires_media_id(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        (new Get_Media())->handle([]);
+    }
+
     public function test_rejects_non_attachment(): void
     {
         $id = self::factory()->post->create();
