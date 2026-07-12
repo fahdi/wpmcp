@@ -142,4 +142,14 @@ class FilesystemGuardTest extends \WP_UnitTestCase
         );
     }
 
+    public function test_backup_to_dir_returns_empty_string_for_a_not_yet_existing_file(): void
+    {
+        $target     = $this->root . '/wp-content/themes/x/does-not-exist-yet.txt';
+        $backup_dir = $this->root . '/backups';
+        mkdir($backup_dir, 0777, true);
+
+        $backup = Filesystem_Guard::backup_to_dir($target, $backup_dir, $this->root, '20260627-120000');
+
+        $this->assertSame('', $backup);
+    }
 }
