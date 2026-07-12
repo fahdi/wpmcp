@@ -5,6 +5,7 @@ namespace WPMCP\Tests\Pro\Elementor;
 use WPMCP\MCP\{Ability, Registrar};
 use WPMCP\Pro\Gate;
 use WPMCP\Tools\Elementor\Get_Elementor_Data;
+use WPMCP\Tools\Elementor\Update_Element;
 
 /**
  * Verifies the get-elementor-data ability is declared as pro-tier and that
@@ -60,5 +61,48 @@ class ElementorDeepAbilitiesRegistrationTest extends \WP_UnitTestCase
 
         $names = array_map(fn($a) => $a->name, $registrar->all());
         $this->assertContains('wpmcp/get-elementor-data', $names);
+    }
+
+    private function make_update_element_ability(): Ability
+    {
+        return new Ability(
+            'wpmcp/update-element',
+            'pro',
+            'Update an Elementor element\'s settings by id.',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'post_id'    => ['type' => 'integer'],
+                    'element_id' => ['type' => 'string'],
+                    'settings'   => ['type' => 'object'],
+                ],
+                'required'   => ['post_id', 'element_id', 'settings'],
+            ],
+            [new Update_Element(), 'handle'],
+            'edit_posts',
+            'elementor',
+            'update'
+        );
+    }
+
+    public function test_registrar_skips_update_element_when_free(): void
+    {
+        Gate::set_pro_for_tests(false);
+
+        $registrar = new Registrar();
+        $registrar->register($this->make_update_element_ability());
+
+        $this->assertCount(0, $registrar->all());
+    }
+
+    public function test_registrar_keeps_update_element_when_pro(): void
+    {
+        Gate::set_pro_for_tests(true);
+
+        $registrar = new Registrar();
+        $registrar->register($this->make_update_element_ability());
+
+        $names = array_map(fn($a) => $a->name, $registrar->all());
+        $this->assertContains('wpmcp/update-element', $names);
     }
 }

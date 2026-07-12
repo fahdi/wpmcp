@@ -70,6 +70,7 @@ use WPMCP\Tools\Cache\Clear_Cache;
 use WPMCP\Tools\Elementor\List_Widgets;
 use WPMCP\Tools\Elementor\Get_Widget_Schema;
 use WPMCP\Tools\Elementor\Get_Elementor_Data;
+use WPMCP\Tools\Elementor\Update_Element;
 use WPMCP\Tools\WooCommerce\List_Products;
 use WPMCP\Tools\WooCommerce\Get_Product;
 use WPMCP\Tools\WooCommerce\Create_Product;
@@ -1379,6 +1380,27 @@ final class Plugin
             'edit_posts',
             'elementor',
             'read'
+        ));
+
+        $update_element = new Update_Element();
+
+        $registrar->register(new Ability(
+            'wpmcp/update-element',
+            'pro',
+            'Update an Elementor element\'s settings by id, merging the given settings into its existing settings. Reads and writes the page\'s _elementor_data; undoable via rollback-operation since _elementor_data is ordinary postmeta captured by the existing post snapshot',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'post_id'    => [ 'type' => 'integer' ],
+                    'element_id' => [ 'type' => 'string' ],
+                    'settings'   => [ 'type' => 'object' ],
+                ],
+                'required'   => [ 'post_id', 'element_id', 'settings' ],
+            ],
+            [$update_element, 'handle'],
+            'edit_posts',
+            'elementor',
+            'update'
         ));
     }
 
