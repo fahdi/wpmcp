@@ -29,4 +29,13 @@ class BootstrapTest extends \WP_UnitTestCase
         $this->assertSame(WPMCP_FS_ID, $config['id']);
         $this->assertSame(WPMCP_FS_PUBLIC_KEY, $config['public_key']);
     }
+
+    public function test_init_is_safe_noop_when_sdk_absent(): void
+    {
+        $this->assertFileDoesNotExist(WPMCP_DIR . 'vendor/freemius/start.php');
+
+        Bootstrap::init();
+
+        $this->assertFalse(function_exists('wpmcp_fs'));
+    }
 }
