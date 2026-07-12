@@ -4,6 +4,8 @@ namespace WPMCP\Tests\Free\Performance;
 
 use WPMCP\Tools\Performance\Analyzer;
 use WPMCP\Tools\Performance\Finding;
+use WPMCP\Tools\Performance\Page_Audit;
+use WPMCP\Tools\Performance\Server_Audit;
 
 class AnalyzerTest extends \WP_UnitTestCase
 {
@@ -133,5 +135,30 @@ class AnalyzerTest extends \WP_UnitTestCase
     {
         $this->assertTrue($this->analyzer->validate_same_host('https://example.com/page', 'example.com'));
         $this->assertFalse($this->analyzer->validate_same_host('https://evil.test/page', 'example.com'));
+    }
+
+    public function test_analyze_defaults_to_the_frontpage_and_merges_server_and_page_findings(): void
+    {
+        $server = $this->createMock(Server_Audit::class);
+        $server->method('run')->willReturn([$this->finding('pass')]);
+
+        $page = $this->createMock(Page_Audit::class);
+        $page->method('fetch')->willReturn(['ok' => true, 'status_code' => 200, 'response_ms' => 10, 'total_bytes' => 5, 'headers' => [], 'body' => '', 'error' => null, 'host' => 'example.org']);
+        $page->method('analyze')->willReturn([
+            'findings'   => [Finding::make('http_status', 'page', 'HTTP status', 'pass', 200, 'ok')],
+            'page_fetch' => ['ok' => true, 'status_code' => 200, 'response_ms' => 10, 'total_bytes' => 5, 'error' => null],
+        ]);
+
+        $analyzer = new Analyzer($server, $page);
+        $result   = $analyzer->analyze([]);
+
+        $this->assertTrue($result['target']['is_front_page']);
+        $this->assertNull($result['target']['post_id']);
+        $this->assertSame(100, $result['summary']['score']);
+        $this->assertSame('A', $result['summary']['grade']);
+        $this->assertCount(1, $result['sections']['server']);
+        $this->assertCount(1, $result['sections']['page']);
+        $this->assertTrue($result['page_fetch']['ok']);
+        $this->assertSame([], $result['top_recommendations']);
     }
 }
