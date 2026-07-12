@@ -69,4 +69,19 @@ class RateLimiterTest extends \WP_UnitTestCase
         $this->assertTrue($reset['allowed']);
         $this->assertSame(0, $reset['remaining']);
     }
+
+    public function test_different_clients_have_independent_counters(): void
+    {
+        add_filter('wpmcp_rate_limit', fn() => 1);
+        Rate_Limiter::set_clock_override(fn() => 1000);
+
+        // Exhaust user:1's budget.
+        $this->assertTrue(Rate_Limiter::check('user:1')['allowed']);
+        $this->assertFalse(Rate_Limiter::check('user:1')['allowed']);
+
+        // user:2 is unaffected and still has a full budget.
+        $other = Rate_Limiter::check('user:2');
+        $this->assertTrue($other['allowed']);
+        $this->assertSame(0, $other['remaining']);
+    }
 }
