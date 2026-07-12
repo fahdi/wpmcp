@@ -73,4 +73,18 @@ class FilesystemGuardTest extends \WP_UnitTestCase
             $out
         );
     }
+
+    public function test_rejects_symlink_escaping_the_root(): void
+    {
+        $link = $this->root . '/escape';
+        if (! @symlink(dirname($this->root), $link)) {
+            $this->markTestSkipped('symlink() unavailable in this environment');
+        }
+
+        $out = Filesystem_Guard::resolve_path('escape/wpmcp-outside.txt', $this->root);
+        $this->assertInstanceOf(\WP_Error::class, $out);
+        $this->assertSame('outside_root', $out->get_error_code());
+
+        @unlink($link);
+    }
 }
