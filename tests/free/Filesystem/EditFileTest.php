@@ -107,4 +107,27 @@ class EditFileTest extends \WP_UnitTestCase
             'new_string' => 'x',
         ]);
     }
+
+    public function test_refuses_to_edit_a_protected_file(): void
+    {
+        add_filter('wpmcp_enable_fs_writes', '__return_true');
+        $admin = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin);
+
+        add_filter('wpmcp_fs_protected_paths', function ($paths) {
+            $paths[] = 'edit.txt';
+            return $paths;
+        });
+
+        $this->expectException(\RuntimeException::class);
+        try {
+            (new Edit_File())->handle([
+                'path'       => $this->rel_dir . '/edit.txt',
+                'old_string' => 'world',
+                'new_string' => 'there',
+            ]);
+        } finally {
+            $this->assertSame("hello world\n", file_get_contents(ABSPATH . $this->rel_dir . '/edit.txt'));
+        }
+    }
 }
