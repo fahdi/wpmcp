@@ -51,6 +51,22 @@ class Rate_Limiter
         return time();
     }
 
+    /**
+     * Identity used to key a client's budget: the current user id when logged
+     * in, otherwise the remote IP for anonymous callers. Prefixed so a user id
+     * and an IP can never collide.
+     */
+    public static function client_key(): string
+    {
+        $user_id = get_current_user_id();
+        if ($user_id > 0) {
+            return 'user:' . $user_id;
+        }
+
+        $ip = isset($_SERVER['REMOTE_ADDR']) ? (string) $_SERVER['REMOTE_ADDR'] : 'unknown';
+        return 'ip:' . $ip;
+    }
+
     /** Whether the limiter is active at all (wpmcp_rate_limit_enabled filter, default true). */
     public static function is_enabled(): bool
     {

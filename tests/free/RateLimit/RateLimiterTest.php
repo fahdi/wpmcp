@@ -85,6 +85,26 @@ class RateLimiterTest extends \WP_UnitTestCase
         $this->assertSame(0, $other['remaining']);
     }
 
+    public function test_client_key_uses_the_current_user_id_when_logged_in(): void
+    {
+        $user_id = self::factory()->user->create();
+        wp_set_current_user($user_id);
+
+        $this->assertSame('user:' . $user_id, Rate_Limiter::client_key());
+
+        wp_set_current_user(0);
+    }
+
+    public function test_client_key_falls_back_to_ip_for_anonymous_callers(): void
+    {
+        wp_set_current_user(0);
+        $_SERVER['REMOTE_ADDR'] = '203.0.113.9';
+
+        $this->assertSame('ip:203.0.113.9', Rate_Limiter::client_key());
+
+        unset($_SERVER['REMOTE_ADDR']);
+    }
+
     public function test_no_call_is_denied_when_the_limiter_is_disabled(): void
     {
         add_filter('wpmcp_rate_limit', fn() => 1);
