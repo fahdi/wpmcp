@@ -22,6 +22,9 @@ use WPMCP\Tools\Content\Update_Post;
 use WPMCP\Tools\Content\Delete_Post;
 use WPMCP\Tools\Content\List_Posts;
 use WPMCP\Tools\Content\Set_Post_Terms;
+use WPMCP\Tools\Revisions\List_Revisions;
+use WPMCP\Tools\Revisions\Get_Revision;
+use WPMCP\Tools\Revisions\Restore_Revision;
 use WPMCP\Tools\Media\Get_Media;
 use WPMCP\Tools\Media\Update_Media;
 use WPMCP\Tools\Media\Delete_Media;
@@ -418,6 +421,61 @@ final class Plugin
                 'required'   => [ 'post_id', 'taxonomy', 'terms' ],
             ],
             [$set_post_terms, 'handle'],
+            'edit_posts',
+            'content',
+            'update'
+        ));
+
+        $list_revisions   = new List_Revisions();
+        $get_revision     = new Get_Revision();
+        $restore_revision = new Restore_Revision();
+
+        $registrar->register(new Ability(
+            'wpmcp/list-revisions',
+            'free',
+            'List a post\'s revisions (id, author, date, change excerpt)',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'post_id' => [ 'type' => 'integer' ],
+                ],
+                'required'   => [ 'post_id' ],
+            ],
+            [$list_revisions, 'handle'],
+            'edit_posts',
+            'content',
+            'read'
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/get-revision',
+            'free',
+            'Read a single post revision\'s fields',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'revision_id' => [ 'type' => 'integer' ],
+                ],
+                'required'   => [ 'revision_id' ],
+            ],
+            [$get_revision, 'handle'],
+            'edit_posts',
+            'content',
+            'read'
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/restore-revision',
+            'free',
+            'Restore a post to a given revision',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'post_id'     => [ 'type' => 'integer' ],
+                    'revision_id' => [ 'type' => 'integer' ],
+                    'session_id'  => [ 'type' => 'string' ],
+                ],
+                'required'   => [ 'post_id', 'revision_id' ],
+            ],
+            [$restore_revision, 'handle'],
             'edit_posts',
             'content',
             'update'

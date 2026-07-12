@@ -19,10 +19,10 @@ class PluginAbilitiesTest extends \WP_UnitTestCase
         }
     }
 
-    public function test_all_73_abilities_register_by_default(): void
+    public function test_all_76_abilities_register_by_default(): void
     {
         $registrar = Plugin::instance()->registrar();
-        $this->assertCount(73, $registrar->all());
+        $this->assertCount(76, $registrar->all());
     }
 
     public function test_read_ability_has_read_only_annotation(): void
@@ -67,6 +67,18 @@ class PluginAbilitiesTest extends \WP_UnitTestCase
         $this->assertSame('update', $abilities['wpmcp/update-post']->operation);
         $this->assertSame('content', $abilities['wpmcp/delete-post']->domain);
         $this->assertSame('delete', $abilities['wpmcp/delete-post']->operation);
+    }
+
+    public function test_revisions_abilities_are_tagged_content_domain(): void
+    {
+        $abilities = $this->index(Plugin::instance()->registrar()->all());
+
+        $this->assertSame('content', $abilities['wpmcp/list-revisions']->domain);
+        $this->assertSame('read', $abilities['wpmcp/list-revisions']->operation);
+        $this->assertSame('content', $abilities['wpmcp/get-revision']->domain);
+        $this->assertSame('read', $abilities['wpmcp/get-revision']->operation);
+        $this->assertSame('content', $abilities['wpmcp/restore-revision']->domain);
+        $this->assertSame('update', $abilities['wpmcp/restore-revision']->operation);
     }
 
     public function test_media_abilities_are_tagged_media_domain(): void
