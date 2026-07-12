@@ -31,6 +31,17 @@ use WPMCP\Tools\Users\List_Users;
 use WPMCP\Tools\Users\Get_User;
 use WPMCP\Tools\Users\Create_User;
 use WPMCP\Tools\Users\Update_User;
+use WPMCP\Tools\Packages\List_Plugins;
+use WPMCP\Tools\Packages\Activate_Plugin;
+use WPMCP\Tools\Packages\Deactivate_Plugin;
+use WPMCP\Tools\Packages\Install_Plugin;
+use WPMCP\Tools\Packages\Update_Plugin;
+use WPMCP\Tools\Packages\Delete_Plugin;
+use WPMCP\Tools\Packages\List_Themes;
+use WPMCP\Tools\Packages\Switch_Theme;
+use WPMCP\Tools\Packages\Install_Theme;
+use WPMCP\Tools\Packages\Update_Theme;
+use WPMCP\Tools\Packages\Delete_Theme;
 
 if (! defined('ABSPATH') && ! defined('WPMCP_TESTING')) {
     exit;
@@ -479,6 +490,175 @@ final class Plugin
             ],
             [$update_user, 'handle'],
             'edit_users'
+        ));
+
+        $list_plugins      = new List_Plugins();
+        $activate_plugin   = new Activate_Plugin();
+        $deactivate_plugin = new Deactivate_Plugin();
+        $install_plugin    = new Install_Plugin();
+        $update_plugin     = new Update_Plugin();
+        $delete_plugin     = new Delete_Plugin();
+        $list_themes       = new List_Themes();
+        $switch_theme      = new Switch_Theme();
+        $install_theme     = new Install_Theme();
+        $update_theme      = new Update_Theme();
+        $delete_theme      = new Delete_Theme();
+
+        $registrar->register(new Ability(
+            'wpmcp/list-plugins',
+            'free',
+            'List installed plugins with active status, protected-package flag, and pending update info',
+            [
+                'type'       => 'object',
+                'properties' => [],
+            ],
+            [$list_plugins, 'handle']
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/activate-plugin',
+            'free',
+            'Activate an installed plugin. Snapshots the prior active_plugins option so it can be rolled back',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'plugin'     => [ 'type' => 'string' ],
+                    'session_id' => [ 'type' => 'string' ],
+                ],
+                'required'   => [ 'plugin' ],
+            ],
+            [$activate_plugin, 'handle'],
+            'activate_plugins'
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/deactivate-plugin',
+            'free',
+            'Deactivate a plugin. Refuses protected packages (wpmcp, Elementor). Snapshots the prior active_plugins option so it can be rolled back',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'plugin'     => [ 'type' => 'string' ],
+                    'session_id' => [ 'type' => 'string' ],
+                ],
+                'required'   => [ 'plugin' ],
+            ],
+            [$deactivate_plugin, 'handle'],
+            'activate_plugins'
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/install-plugin',
+            'free',
+            'Install a plugin from wordpress.org by slug, optionally activating it. Additive only; nothing to roll back',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'slug'     => [ 'type' => 'string' ],
+                    'activate' => [ 'type' => 'boolean' ],
+                ],
+                'required'   => [ 'slug' ],
+            ],
+            [$install_plugin, 'handle'],
+            'install_plugins'
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/update-plugin',
+            'free',
+            'Update an installed plugin to the latest wordpress.org version. Disabled by default (wpmcp_enable_update_plugin filter) and requires confirm:true. File changes are not rollback-able',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'plugin'  => [ 'type' => 'string' ],
+                    'confirm' => [ 'type' => 'boolean' ],
+                ],
+                'required'   => [ 'plugin', 'confirm' ],
+            ],
+            [$update_plugin, 'handle'],
+            'update_plugins'
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/delete-plugin',
+            'free',
+            'Permanently delete an installed plugin\'s files. Disabled by default (wpmcp_enable_delete_plugin filter) and requires confirm:true. Refuses protected or active plugins. Not rollback-able',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'plugin'  => [ 'type' => 'string' ],
+                    'confirm' => [ 'type' => 'boolean' ],
+                ],
+                'required'   => [ 'plugin', 'confirm' ],
+            ],
+            [$delete_plugin, 'handle'],
+            'delete_plugins'
+        ));
+
+        $registrar->register(new Ability(
+            'wpmcp/list-themes',
+            'free',
+            'List installed themes with active status, parent theme, and pending update info',
+            [
+                'type'       => 'object',
+                'properties' => [],
+            ],
+            [$list_themes, 'handle']
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/switch-theme',
+            'free',
+            'Activate (switch to) an installed theme. Snapshots the prior template/stylesheet options so it can be rolled back',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'stylesheet' => [ 'type' => 'string' ],
+                    'session_id' => [ 'type' => 'string' ],
+                ],
+                'required'   => [ 'stylesheet' ],
+            ],
+            [$switch_theme, 'handle'],
+            'switch_themes'
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/install-theme',
+            'free',
+            'Install a theme from wordpress.org by slug, optionally activating it. Additive only; nothing to roll back',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'slug'     => [ 'type' => 'string' ],
+                    'activate' => [ 'type' => 'boolean' ],
+                ],
+                'required'   => [ 'slug' ],
+            ],
+            [$install_theme, 'handle'],
+            'install_themes'
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/update-theme',
+            'free',
+            'Update an installed theme to the latest wordpress.org version. Disabled by default (wpmcp_enable_update_theme filter) and requires confirm:true. File changes are not rollback-able',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'stylesheet' => [ 'type' => 'string' ],
+                    'confirm'    => [ 'type' => 'boolean' ],
+                ],
+                'required'   => [ 'stylesheet', 'confirm' ],
+            ],
+            [$update_theme, 'handle'],
+            'update_themes'
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/delete-theme',
+            'free',
+            'Permanently delete an installed theme\'s files. Disabled by default (wpmcp_enable_delete_theme filter) and requires confirm:true. Refuses the active theme (or its active parent). Not rollback-able',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'stylesheet' => [ 'type' => 'string' ],
+                    'confirm'    => [ 'type' => 'boolean' ],
+                ],
+                'required'   => [ 'stylesheet', 'confirm' ],
+            ],
+            [$delete_theme, 'handle'],
+            'delete_themes'
         ));
     }
 }
