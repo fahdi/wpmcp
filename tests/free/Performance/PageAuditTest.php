@@ -196,4 +196,29 @@ class PageAuditTest extends \WP_UnitTestCase
         $this->assertSame(0, $lazy['value']);
         $this->assertSame('pass', $lazy['status']);
     }
+
+    public function test_third_party_lists_domains_that_differ_from_the_page_host(): void
+    {
+        $body = '<html><head>'
+            . '<link rel="stylesheet" href="https://fonts.example.net/style.css">'
+            . '<script src="https://cdn.example.org/lib.js"></script>'
+            . '</head><body></body></html>';
+
+        $result      = $this->audit->analyze($this->fetched($body), false);
+        $third_party = $this->finding_of($result, 'third_party');
+
+        $this->assertSame('info', $third_party['status']);
+        $this->assertSame(['fonts.example.net', 'cdn.example.org'], $third_party['value']);
+    }
+
+    public function test_third_party_passes_when_no_foreign_domains_referenced(): void
+    {
+        $body = '<html><head><link rel="stylesheet" href="/local.css"></head><body></body></html>';
+
+        $result      = $this->audit->analyze($this->fetched($body), false);
+        $third_party = $this->finding_of($result, 'third_party');
+
+        $this->assertSame('pass', $third_party['status']);
+        $this->assertSame([], $third_party['value']);
+    }
 }

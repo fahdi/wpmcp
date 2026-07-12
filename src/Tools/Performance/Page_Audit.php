@@ -141,8 +141,9 @@ class Page_Audit
         $scripts = $dom->getElementsByTagName('script');
         $images  = $dom->getElementsByTagName('img');
 
-        $head_css  = 0;
-        $css_total = 0;
+        $head_css      = 0;
+        $css_total     = 0;
+        $third_parties = [];
         foreach ($links as $link) {
             $rel = strtolower((string) $link->getAttribute('rel'));
             if ('stylesheet' !== $rel) {
@@ -152,6 +153,7 @@ class Page_Audit
             if ($this->in_head($link)) {
                 $head_css++;
             }
+            $this->track_third_party((string) $link->getAttribute('href'), $host, $third_parties);
         }
 
         $js_total  = 0;
@@ -162,6 +164,7 @@ class Page_Audit
                 continue; // inline.
             }
             $js_total++;
+            $this->track_third_party($src, $host, $third_parties);
             $is_async = $script->hasAttribute('async') || $script->hasAttribute('defer');
             if (! $is_async && $this->in_head($script)) {
                 $sync_head++;
@@ -220,7 +223,28 @@ class Page_Audit
             )
             : Finding::make('image_lazy_loading', 'assets', 'Image lazy-loading', 'pass', 0, 'All images use lazy-loading (or there are none).');
 
+        $third_party_hosts = array_keys($third_parties);
+        $findings[]        = (count($third_party_hosts) > 0)
+            ? Finding::make(
+                'third_party',
+                'assets',
+                'Third-party domains',
+                'info',
+                $third_party_hosts,
+                sprintf('%d third-party domain(s) referenced.', count($third_party_hosts)),
+                'Each extra domain adds DNS and connection cost; self-host fonts/scripts where practical.'
+            )
+            : Finding::make('third_party', 'assets', 'Third-party domains', 'pass', [], 'No third-party asset domains referenced.');
+
         return $findings;
+    }
+
+    private function track_third_party(string $url, string $host, array &$accumulator): void
+    {
+        $url_host = (string) wp_parse_url($url, PHP_URL_HOST);
+        if ('' !== $url_host && $url_host !== $host) {
+            $accumulator[ $url_host ] = true;
+        }
     }
 
     private function in_head(\DOMNode $node): bool
