@@ -15,15 +15,34 @@ class Snapshot
             'object_type' => $object_type,
             'object_id'   => $object_id,
             'data'        => [
-                'post'  => $post ? [
-                    'post_content' => $post['post_content'],
-                    'post_title'   => $post['post_title'],
-                    'post_status'  => $post['post_status'],
-                ] : null,
-                'meta'  => get_post_meta($object_id),
-                'terms' => $post ? self::capture_terms($object_id, $post['post_type']) : [],
+                // Full row (all columns), not a hand-picked subset: a partial
+                // capture means resurrection after a force-delete rebuilds
+                // the missing columns from wp_insert_post()'s defaults
+                // (post_type becomes 'post', post_author/post_parent/post_name/
+                // dates/menu_order/etc are lost). See apply_snapshot() for how
+                // the in-place vs resurrection restore paths use this.
+                'post'     => $post ?: null,
+                'meta'     => get_post_meta($object_id),
+                'terms'    => $post ? self::capture_terms($object_id, $post['post_type']) : [],
+                // Only needed for the force-delete -> resurrect path: wp_delete_post($id, true)
+                // destroys comments + commentmeta, which have no equivalent in
+                // the trash/in-place-update paths.
+                'comments' => $post ? self::capture_comments($object_id) : [],
             ],
         ];
+    }
+
+    /** Comments (with their commentmeta) attached to the post, for resurrection after a force-delete. */
+    private static function capture_comments(int $post_id): array
+    {
+        $comments = get_comments(['post_id' => $post_id, 'status' => 'all', 'orderby' => 'comment_ID', 'order' => 'ASC']);
+        $out = [];
+        foreach ($comments as $comment) {
+            $data = $comment->to_array();
+            $data['meta'] = get_comment_meta((int) $comment->comment_ID);
+            $out[] = $data;
+        }
+        return $out;
     }
 
     /** Map of taxonomy => term IDs currently assigned to the post, for terms rollback. */
