@@ -40,6 +40,21 @@ class Page_Audit
             return ['findings' => $findings, 'page_fetch' => $page_fetch];
         }
 
-        return ['findings' => [], 'page_fetch' => $page_fetch];
+        $status   = (int) ($fetched['status_code'] ?? 0);
+        $findings = [];
+
+        $findings[] = (200 === $status)
+            ? Finding::make('http_status', 'page', 'HTTP status', 'pass', $status, 'Page returned HTTP 200.')
+            : Finding::make(
+                'http_status',
+                'page',
+                'HTTP status',
+                'warning',
+                $status,
+                sprintf('Page returned HTTP %d.', $status),
+                'A non-200 status means the analyzed URL is redirecting or erroring; verify the target.'
+            );
+
+        return ['findings' => $findings, 'page_fetch' => $page_fetch];
     }
 }

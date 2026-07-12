@@ -50,4 +50,13 @@ class PageAuditTest extends \WP_UnitTestCase
         $this->assertSame('warning', $this->status_of($result, 'page_fetch'));
         $this->assertCount(1, $result['findings']);
     }
+
+    public function test_http_status_pass_on_200_warning_otherwise(): void
+    {
+        $pass = $this->audit->analyze($this->fetched('<html></html>', [], 200), false);
+        $this->assertSame('pass', $this->status_of($pass, 'http_status'));
+
+        $warn = $this->audit->analyze($this->fetched('<html></html>', [], 404), false);
+        $this->assertSame('warning', $this->status_of($warn, 'http_status'));
+    }
 }
