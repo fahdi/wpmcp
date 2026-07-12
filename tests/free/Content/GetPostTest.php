@@ -23,4 +23,10 @@ class GetPostTest extends \WP_UnitTestCase
         $this->assertArrayHasKey('is_elementor', $out);
         $this->assertFalse($out['is_elementor']);
     }
+
+    public function test_not_found_throws(): void
+    {
+        $this->expectException(\InvalidArgumentException::class);
+        (new Get_Post())->handle(['post_id' => 999999]);
+    }
 }
