@@ -68,6 +68,20 @@ class WriteFileTest extends \WP_UnitTestCase
         @unlink($backup_abs);
     }
 
+    public function test_refuses_a_subscriber_without_edit_files_capability(): void
+    {
+        add_filter('wpmcp_enable_fs_writes', '__return_true');
+        $subscriber = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($subscriber);
+
+        $this->expectException(\RuntimeException::class);
+        try {
+            (new Write_File())->handle(['path' => $this->rel_dir . '/new.txt', 'content' => 'nope']);
+        } finally {
+            $this->assertFileDoesNotExist(ABSPATH . $this->rel_dir . '/new.txt');
+        }
+    }
+
     public function test_refuses_to_write_a_protected_file(): void
     {
         add_filter('wpmcp_enable_fs_writes', '__return_true');
