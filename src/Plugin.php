@@ -54,6 +54,7 @@ use WPMCP\Tools\Filesystem\Search_Files;
 use WPMCP\Tools\Filesystem\Write_File;
 use WPMCP\Tools\Filesystem\Edit_File;
 use WPMCP\Tools\Filesystem\Delete_File;
+use WPMCP\Tools\Performance\Analyze_Performance;
 
 if (! defined('ABSPATH') && ! defined('WPMCP_TESTING')) {
     exit;
@@ -865,6 +866,25 @@ final class Plugin
                 'required'   => [ 'path' ],
             ],
             [$delete_file, 'handle'],
+            'manage_options'
+        ));
+
+        $analyze_performance = new Analyze_Performance();
+
+        $registrar->register(new Ability(
+            'wpmcp/analyze-performance',
+            'free',
+            'Scan server configuration, WordPress internals (database size, autoloaded options, cron backlog, object cache, OPcache, plugin count), and a target page (defaults to the frontpage; pass "url" or "post_id" for a specific page) for performance issues and bottlenecks. Returns a scored report with severities and ranked, actionable recommendations. Read-only; analyzes this site only',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'url'                => [ 'type' => 'string' ],
+                    'post_id'            => [ 'type' => 'integer' ],
+                    'include_page_fetch' => [ 'type' => 'boolean' ],
+                    'deep_assets'        => [ 'type' => 'boolean' ],
+                ],
+            ],
+            [$analyze_performance, 'handle'],
             'manage_options'
         ));
     }
