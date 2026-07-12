@@ -56,4 +56,22 @@ class UpdatePostTest extends \WP_UnitTestCase
         $this->assertTrue(Rollback_Service::restore_operation($out['operation_id']));
         $this->assertSame('original', get_post($id)->post_title);
     }
+
+    /**
+     * Regression test: the pre-fix snapshot only captured post_content,
+     * post_title and post_status, so an in-place rollback silently dropped
+     * every other field, including post_excerpt. Now that Snapshot::capture()
+     * records the full post row, updating and rolling back a field like the
+     * excerpt must restore it exactly.
+     */
+    public function test_rollback_restores_excerpt_after_in_place_update(): void
+    {
+        $id  = self::factory()->post->create(['post_excerpt' => 'original excerpt']);
+        $out = (new Update_Post())->handle(['post_id' => $id, 'excerpt' => 'changed excerpt', 'session_id' => 's1']);
+
+        $this->assertSame('changed excerpt', get_post($id)->post_excerpt);
+
+        $this->assertTrue(Rollback_Service::restore_operation($out['operation_id']));
+        $this->assertSame('original excerpt', get_post($id)->post_excerpt);
+    }
 }
