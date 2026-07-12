@@ -4,6 +4,10 @@
 
 namespace WPMCP;
 
+use WPMCP\MCP\Ability;
+use WPMCP\MCP\Registrar;
+use WPMCP\Tools\Get_Page;
+
 if (! defined('ABSPATH') && ! defined('WPMCP_TESTING')) {
     exit;
 }
@@ -23,6 +27,28 @@ final class Plugin
         if (function_exists('register_activation_hook') && defined('WPMCP_FILE')) {
             register_activation_hook(WPMCP_FILE, [Activator::class, 'activate']);
         }
-        // Additional services wired in later tasks (MCP\Registrar, etc.)
+        if (function_exists('add_action')) {
+            $hook = function_exists('wp_register_ability') ? 'wp_abilities_api_init' : 'init';
+            add_action($hook, [$this, 'register_abilities']);
+        }
+    }
+
+    public function register_abilities(): void
+    {
+        $registrar = new Registrar();
+        $get_page  = new Get_Page();
+        $registrar->register(new Ability(
+            'wpmcp/get-page',
+            'free',
+            'Read a page',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'id' => [ 'type' => 'integer' ],
+                ],
+                'required'   => [ 'id' ],
+            ],
+            [$get_page, 'handle']
+        ));
     }
 }
