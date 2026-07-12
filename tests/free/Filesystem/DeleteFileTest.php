@@ -41,4 +41,27 @@ class DeleteFileTest extends \WP_UnitTestCase
             $this->assertFileExists(ABSPATH . $this->rel_dir . '/gone.txt');
         }
     }
+
+    public function test_deletes_the_file_and_backs_it_up_so_it_is_restorable(): void
+    {
+        add_filter('wpmcp_enable_fs_writes', '__return_true');
+        $admin = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin);
+
+        $result = (new Delete_File())->handle(['path' => $this->rel_dir . '/gone.txt', 'confirm' => true]);
+
+        $this->assertTrue($result['deleted']);
+        $this->assertTrue($result['recoverable']);
+        $this->assertNotNull($result['backup']);
+        $this->assertFileDoesNotExist(ABSPATH . $this->rel_dir . '/gone.txt');
+
+        $backup_abs = ABSPATH . $result['backup'];
+        $this->assertSame("delete me\n", file_get_contents($backup_abs));
+
+        $restored = \WPMCP\Tools\Filesystem\Filesystem_Guard::restore($backup_abs, ABSPATH . $this->rel_dir . '/gone.txt');
+        $this->assertTrue($restored);
+        $this->assertSame("delete me\n", file_get_contents(ABSPATH . $this->rel_dir . '/gone.txt'));
+
+        @unlink($backup_abs);
+    }
 }
