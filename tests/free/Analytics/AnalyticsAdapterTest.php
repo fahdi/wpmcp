@@ -103,4 +103,71 @@ class AnalyticsAdapterTest extends \WP_UnitTestCase
         $this->assertSame('configured', $status['provider']);
         $this->assertTrue($status['connected']);
     }
+
+    public function test_validate_date_range_passes_through_a_valid_range(): void
+    {
+        $result = Analytics_Adapter::validate_date_range('2026-01-01', '2026-01-31');
+
+        $this->assertSame(['start_date' => '2026-01-01', 'end_date' => '2026-01-31'], $result);
+    }
+
+    public function test_validate_date_range_defaults_to_trailing_28_days_ending_yesterday_when_both_are_null(): void
+    {
+        $result = Analytics_Adapter::validate_date_range(null, null);
+
+        $yesterday = gmdate('Y-m-d', strtotime('-1 day'));
+        $start     = gmdate('Y-m-d', strtotime('-28 days'));
+
+        $this->assertSame($start, $result['start_date']);
+        $this->assertSame($yesterday, $result['end_date']);
+    }
+
+    public function test_validate_date_range_defaults_when_both_are_empty_strings(): void
+    {
+        $result = Analytics_Adapter::validate_date_range('', '');
+
+        $this->assertArrayHasKey('start_date', $result);
+        $this->assertArrayHasKey('end_date', $result);
+    }
+
+    public function test_validate_date_range_rejects_a_malformed_start_date(): void
+    {
+        $result = Analytics_Adapter::validate_date_range('01/01/2026', '2026-01-31');
+
+        $this->assertInstanceOf(\WP_Error::class, $result);
+        $this->assertSame('wpmcp_invalid_date_range', $result->get_error_code());
+    }
+
+    public function test_validate_date_range_rejects_a_malformed_end_date(): void
+    {
+        $result = Analytics_Adapter::validate_date_range('2026-01-01', 'not-a-date');
+
+        $this->assertInstanceOf(\WP_Error::class, $result);
+        $this->assertSame('wpmcp_invalid_date_range', $result->get_error_code());
+    }
+
+    public function test_validate_date_range_rejects_start_after_end(): void
+    {
+        $result = Analytics_Adapter::validate_date_range('2026-02-01', '2026-01-01');
+
+        $this->assertInstanceOf(\WP_Error::class, $result);
+        $this->assertSame('wpmcp_invalid_date_range', $result->get_error_code());
+    }
+
+    public function test_validate_date_range_allows_start_equal_to_end(): void
+    {
+        $result = Analytics_Adapter::validate_date_range('2026-01-15', '2026-01-15');
+
+        $this->assertSame(['start_date' => '2026-01-15', 'end_date' => '2026-01-15'], $result);
+    }
+
+    public function test_validate_date_range_clamps_a_future_end_date_to_today(): void
+    {
+        $future = gmdate('Y-m-d', strtotime('+10 days'));
+        $today  = gmdate('Y-m-d');
+
+        $result = Analytics_Adapter::validate_date_range('2026-01-01', $future);
+
+        $this->assertSame($today, $result['end_date']);
+    }
 }

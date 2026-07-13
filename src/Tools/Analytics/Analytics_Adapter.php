@@ -128,4 +128,78 @@ class Analytics_Adapter
                 . 'or configure analytics credentials.',
         ];
     }
+
+    /**
+     * Validate and coerce a caller-supplied start/end date pair to
+     * ['start_date' => 'Y-m-d', 'end_date' => 'Y-m-d'], or a WP_Error when
+     * the input cannot be made sense of. Pure aside from reading the current
+     * date, so it is directly testable.
+     *
+     * Rules:
+     *  - Both null/empty default to a trailing 28-day window ending
+     *    yesterday. Yesterday (not today) is the default end date because
+     *    both GA4 and Search Console data lag by roughly 1-3 days; reporting
+     *    "today" as the end of a default range would mostly return zeros for
+     *    the final day(s) and mislead a caller who didn't ask for a specific
+     *    range.
+     *  - Both dates must be strict Y-m-d format; anything else is a
+     *    wpmcp_invalid_date_range error.
+     *  - start must be <= end (after any clamping below); otherwise a
+     *    wpmcp_invalid_date_range error.
+     *  - end_date is clamped to today when it is in the future, rather than
+     *    erroring: a caller asking for "up to next week" most likely means
+     *    "up to now", and silently clamping is more useful than a hard
+     *    failure for what is likely a benign off-by-a-few-days request.
+     *
+     * @return array|\WP_Error
+     */
+    public static function validate_date_range(?string $start, ?string $end)
+    {
+        $today = gmdate('Y-m-d');
+
+        if (empty($start) && empty($end)) {
+            return [
+                'start_date' => gmdate('Y-m-d', strtotime('-28 days')),
+                'end_date'   => gmdate('Y-m-d', strtotime('-1 day')),
+            ];
+        }
+
+        if (! self::is_valid_ymd($start) || ! self::is_valid_ymd($end)) {
+            return new \WP_Error(
+                'wpmcp_invalid_date_range',
+                'start_date and end_date must both be in Y-m-d format.'
+            );
+        }
+
+        if ($end > $today) {
+            $end = $today;
+        }
+
+        if ($start > $end) {
+            return new \WP_Error(
+                'wpmcp_invalid_date_range',
+                'start_date must not be after end_date.'
+            );
+        }
+
+        return [
+            'start_date' => $start,
+            'end_date'   => $end,
+        ];
+    }
+
+    /**
+     * Whether a string is a real calendar date in strict Y-m-d format (not
+     * just date-parseable: e.g. rejects "2026-1-1" and "01/01/2026").
+     */
+    private static function is_valid_ymd(?string $value): bool
+    {
+        if (null === $value || '' === $value) {
+            return false;
+        }
+
+        $date = \DateTime::createFromFormat('Y-m-d', $value);
+
+        return $date instanceof \DateTime && $date->format('Y-m-d') === $value;
+    }
 }
