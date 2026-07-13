@@ -9,9 +9,11 @@ if (! defined('ABSPATH')) {
 }
 
 /**
- * Read-only orientation payload for an agent connecting to this site: name,
- * URL, tagline, WordPress/PHP versions, and (in later behaviors) theme,
- * plugins, content model, users, locale, and integration capabilities.
+ * Read-only orientation payload for an agent connecting to this site: site
+ * identity, WordPress/PHP versions, active theme, active plugin summary,
+ * public post types and taxonomies (with counts), user count, locale,
+ * timezone, multisite status, integration capabilities, and our own plugin
+ * version/Pro status.
  *
  * Deliberately excludes the admin email and any other secret-shaped value:
  * this tool is meant to be safe at a low capability bar (edit_posts), so
