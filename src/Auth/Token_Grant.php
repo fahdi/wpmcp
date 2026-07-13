@@ -18,14 +18,26 @@ if (! defined('ABSPATH')) {
  * presented client_id and redirect_uri match what the code was bound to, and
  * mint a bearer access token. Every outcome is recorded to the governance
  * audit log under ability 'oauth/token' with only the allow/deny outcome and
- * client_id, never the code or the minted token.
+ * client_id, never the code, secret, or the minted token.
  *
- * All rejections intentionally return the single generic RFC 6749 error code
- * 'invalid_grant' (not a more specific code per failure reason), so a caller
- * probing the endpoint cannot use varying error codes to distinguish "code
- * doesn't exist" from "wrong verifier" from "wrong client" -- that
- * distinction is exactly the kind of oracle an attacker attempting to brute
- * force or hijack a code would want.
+ * Client authentication (client_id + client_secret) happens FIRST, before the
+ * code is ever consumed: every client this plugin registers via DCR is
+ * issued a secret (Client_Store::create() has no "public client" mode yet),
+ * so client_secret is required and verified here, and a request that fails
+ * client authentication must not burn the code (Code_Store::consume() is
+ * single-use, so checking auth first preserves the code for a legitimate
+ * retry). This uses the distinct RFC 6749 'invalid_client' error code, since
+ * that failure is meaningfully different from an invalid/expired/mismatched
+ * grant.
+ *
+ * Every OTHER rejection (bad/expired/replayed code, wrong redirect_uri,
+ * wrong verifier) intentionally returns the single generic 'invalid_grant'
+ * code rather than a more specific one per reason, so a caller probing the
+ * endpoint (who has already authenticated as a real client) cannot use
+ * varying error codes to distinguish "code doesn't exist" from "wrong
+ * verifier" from "wrong redirect_uri" -- that distinction is exactly the
+ * kind of oracle an attacker attempting to brute force or hijack a code
+ * would want.
  */
 class Token_Grant
 {
@@ -43,17 +55,23 @@ class Token_Grant
             );
         }
 
+        $client_id     = (string) ($params['client_id'] ?? '');
+        $client_secret = (string) ($params['client_secret'] ?? '');
+        if (! Client_Store::verify_secret($client_id, $client_secret)) {
+            self::audit(false, $client_id);
+            return new \WP_Error('invalid_client', 'Client authentication failed.');
+        }
+
         $code = (string) ($params['code'] ?? '');
         if ('' === $code) {
-            return self::deny((string) ($params['client_id'] ?? ''));
+            return self::deny($client_id);
         }
 
         $record = Code_Store::consume($code);
         if (null === $record) {
-            return self::deny((string) ($params['client_id'] ?? ''));
+            return self::deny($client_id);
         }
 
-        $client_id = (string) ($params['client_id'] ?? '');
         if ($client_id !== $record['client_id']) {
             return self::deny($client_id);
         }

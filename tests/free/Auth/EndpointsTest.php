@@ -239,6 +239,7 @@ class EndpointsTest extends \WP_Test_REST_TestCase
             'code'          => $code,
             'redirect_uri'  => 'https://example.com/cb',
             'client_id'     => $register_data['client_id'],
+            'client_secret' => $register_data['client_secret'],
             'code_verifier' => 'dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk',
         ]);
         $token_response = $server->dispatch($token_request);

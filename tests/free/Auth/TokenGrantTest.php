@@ -67,6 +67,7 @@ class TokenGrantTest extends \WP_UnitTestCase
             'code'          => $code,
             'redirect_uri'  => 'https://example.com/cb',
             'client_id'     => $client['client_id'],
+            'client_secret' => $client['client_secret'],
             'code_verifier' => self::VERIFIER,
         ]);
 
@@ -80,6 +81,41 @@ class TokenGrantTest extends \WP_UnitTestCase
         $this->assertSame($client['client_id'], $validated['client_id']);
     }
 
+    public function test_missing_client_secret_is_rejected_for_a_confidential_client(): void
+    {
+        $client = $this->register_client();
+        $code   = $this->issue_code($client['client_id']);
+
+        $result = Token_Grant::exchange([
+            'grant_type'    => 'authorization_code',
+            'code'          => $code,
+            'redirect_uri'  => 'https://example.com/cb',
+            'client_id'     => $client['client_id'],
+            'code_verifier' => self::VERIFIER,
+        ]);
+
+        $this->assertInstanceOf(\WP_Error::class, $result);
+        $this->assertSame('invalid_client', $result->get_error_code());
+    }
+
+    public function test_wrong_client_secret_is_rejected(): void
+    {
+        $client = $this->register_client();
+        $code   = $this->issue_code($client['client_id']);
+
+        $result = Token_Grant::exchange([
+            'grant_type'    => 'authorization_code',
+            'code'          => $code,
+            'redirect_uri'  => 'https://example.com/cb',
+            'client_id'     => $client['client_id'],
+            'client_secret' => 'wrong-secret',
+            'code_verifier' => self::VERIFIER,
+        ]);
+
+        $this->assertInstanceOf(\WP_Error::class, $result);
+        $this->assertSame('invalid_client', $result->get_error_code());
+    }
+
     public function test_missing_code_verifier_is_rejected(): void
     {
         $client = $this->register_client();
@@ -90,6 +126,7 @@ class TokenGrantTest extends \WP_UnitTestCase
             'code'         => $code,
             'redirect_uri' => 'https://example.com/cb',
             'client_id'    => $client['client_id'],
+            'client_secret' => $client['client_secret'],
         ]);
 
         $this->assertInstanceOf(\WP_Error::class, $result);
@@ -106,6 +143,7 @@ class TokenGrantTest extends \WP_UnitTestCase
             'code'          => $code,
             'redirect_uri'  => 'https://example.com/cb',
             'client_id'     => $client['client_id'],
+            'client_secret' => $client['client_secret'],
             'code_verifier' => 'wrong-verifier',
         ]);
 
@@ -133,6 +171,7 @@ class TokenGrantTest extends \WP_UnitTestCase
             'code'          => $code,
             'redirect_uri'  => 'https://example.com/cb',
             'client_id'     => $client['client_id'],
+            'client_secret' => $client['client_secret'],
             'code_verifier' => self::CHALLENGE,
         ]);
 
@@ -150,6 +189,7 @@ class TokenGrantTest extends \WP_UnitTestCase
             'code'          => $code,
             'redirect_uri'  => 'https://example.com/cb',
             'client_id'     => $client['client_id'],
+            'client_secret' => $client['client_secret'],
             'code_verifier' => self::VERIFIER,
         ];
 
@@ -169,6 +209,7 @@ class TokenGrantTest extends \WP_UnitTestCase
             'code'          => 'never-issued',
             'redirect_uri'  => 'https://example.com/cb',
             'client_id'     => $client['client_id'],
+            'client_secret' => $client['client_secret'],
             'code_verifier' => self::VERIFIER,
         ]);
 
@@ -186,6 +227,7 @@ class TokenGrantTest extends \WP_UnitTestCase
             'code'          => $code,
             'redirect_uri'  => 'https://attacker.example.com/cb',
             'client_id'     => $client['client_id'],
+            'client_secret' => $client['client_secret'],
             'code_verifier' => self::VERIFIER,
         ]);
 
@@ -204,6 +246,7 @@ class TokenGrantTest extends \WP_UnitTestCase
             'code'          => $code,
             'redirect_uri'  => 'https://example.com/cb',
             'client_id'     => $other_client['client_id'],
+            'client_secret' => $other_client['client_secret'],
             'code_verifier' => self::VERIFIER,
         ]);
 
@@ -234,6 +277,7 @@ class TokenGrantTest extends \WP_UnitTestCase
             'code'          => $code,
             'redirect_uri'  => 'https://example.com/cb',
             'client_id'     => $client['client_id'],
+            'client_secret' => $client['client_secret'],
             'code_verifier' => self::VERIFIER,
         ]);
 
@@ -252,6 +296,7 @@ class TokenGrantTest extends \WP_UnitTestCase
             'code'          => $code,
             'redirect_uri'  => 'https://example.com/cb',
             'client_id'     => $client['client_id'],
+            'client_secret' => $client['client_secret'],
             'code_verifier' => 'wrong-verifier',
         ]);
 

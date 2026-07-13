@@ -14,9 +14,11 @@ if (! defined('ABSPATH')) {
  * requirement that 'issuer' be the authorization server's own identifier.
  *
  * Deliberately advertises only what this plugin actually implements:
- * authorization_code as the sole grant type and S256 as the sole PKCE
- * method, since this plugin never accepts the 'plain' PKCE transformation or
- * any other grant type (issue #43 scope).
+ * authorization_code as the sole grant type, S256 as the sole PKCE method
+ * (never 'plain'), and client_secret_post as the sole token endpoint auth
+ * method -- every client Client_Store::create() registers is issued a
+ * secret and Token_Grant::exchange() requires it, so there is no "none"
+ * (public client) mode to advertise (issue #43 scope).
  */
 class Authorization_Server_Metadata
 {
@@ -32,7 +34,7 @@ class Authorization_Server_Metadata
             'response_types_supported'                => ['code'],
             'grant_types_supported'                   => ['authorization_code'],
             'code_challenge_methods_supported'        => ['S256'],
-            'token_endpoint_auth_methods_supported'   => ['none', 'client_secret_post'],
+            'token_endpoint_auth_methods_supported'   => ['client_secret_post'],
         ];
     }
 }
