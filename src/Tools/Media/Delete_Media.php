@@ -2,7 +2,7 @@
 
 namespace WPMCP\Tools\Media;
 
-use WPMCP\Safety\Safe_Mutation;
+use WPMCP\Safety\{File_Backup, Safe_Mutation};
 
 if (! defined('ABSPATH')) {
     exit;
@@ -55,13 +55,24 @@ class Delete_Media
             return ['media_id' => $media_id, 'deleted' => 'trashed', 'files_recoverable' => true];
         }
 
+        // Back up the physical files (main file + every intermediate size)
+        // BEFORE the mutation unlinks them, so the resulting manifest can
+        // be attached to the snapshot Safe_Mutation is about to persist.
+        // The operation_id is generated here, rather than inside
+        // Safe_Mutation::run(), because the backup directory is keyed by
+        // it and must exist before the mutation runs.
+        $operation_id = wp_generate_uuid4();
+        $manifest     = File_Backup::backup($operation_id, File_Backup::collect_attachment_files($media_id));
+
         $out = Safe_Mutation::run(
             [
-                'object_type' => 'post',
-                'object_id'   => $media_id,
-                'session_id'  => (string) ($args['session_id'] ?? 'default'),
-                'tool_name'   => 'delete-media',
-                'args'        => $args,
+                'object_type'         => 'post',
+                'object_id'           => $media_id,
+                'session_id'          => (string) ($args['session_id'] ?? 'default'),
+                'tool_name'           => 'delete-media',
+                'args'                => $args,
+                'operation_id'        => $operation_id,
+                'extra_snapshot_data' => $manifest ? ['files' => ['operation_id' => $operation_id, 'manifest' => $manifest]] : [],
             ],
             function () use ($media_id, $force) {
                 wp_delete_attachment($media_id, $force);
@@ -69,15 +80,13 @@ class Delete_Media
             }
         );
 
-        // This path is irreversible for the physical file: Safe_Mutation's
-        // rollback restores the DB record (post, meta, terms) but cannot
-        // restore bytes already unlinked from disk. See issue #24.
+        // The physical file(s) are backed up above, so rollback restores
+        // both the DB record and the bytes on disk. See issue #24.
         return [
             'operation_id'      => $out['operation_id'],
             'media_id'          => $media_id,
             'deleted'           => 'deleted',
-            'files_recoverable' => false,
-            'warning'           => 'Rollback restores the media record but not the physical file(s); the file is permanently deleted (see issue #24).',
+            'files_recoverable' => true,
         ];
     }
 }
