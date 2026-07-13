@@ -24,6 +24,9 @@ if (! defined('ABSPATH')) {
  */
 class Php_Snippet_Guard
 {
+    /** Test seam: forces wp_get_environment_type()'s return value. Null = live detection. */
+    private static ?string $environment_override = null;
+
     /**
      * Whether PHP snippet execution is enabled at all. Two opt-in seams,
      * either sufficient: the WPMCP_ALLOW_PHP_EXEC constant (for
@@ -38,5 +41,51 @@ class Php_Snippet_Guard
         $default = defined('WPMCP_ALLOW_PHP_EXEC') && WPMCP_ALLOW_PHP_EXEC;
 
         return (bool) apply_filters('wpmcp_allow_php_exec', $default);
+    }
+
+    /**
+     * Test seam: force wp_get_environment_type()'s effective value so tests
+     * do not depend on live server configuration, mirroring
+     * Wp_Cli_Guard::set_environment_override(). Pass null to resume live
+     * detection.
+     */
+    public static function set_environment_override(?string $environment): void
+    {
+        self::$environment_override = $environment;
+    }
+
+    /** Current environment type, honoring the test override when set. */
+    private static function environment_type(): string
+    {
+        if (null !== self::$environment_override) {
+            return self::$environment_override;
+        }
+
+        return function_exists('wp_get_environment_type') ? wp_get_environment_type() : '';
+    }
+
+    /**
+     * Whether the active environment permits PHP snippet execution.
+     * FAIL CLOSED: only the three explicit non-production values below
+     * proceed without an override. Every other value, including an unknown
+     * or empty string (wp_get_environment_type() unavailable or
+     * misconfigured) and the literal 'production', is refused unless a
+     * SEPARATE, explicit wpmcp_allow_php_exec_on_production
+     * filter/WPMCP_ALLOW_PHP_EXEC_ON_PRODUCTION constant is also set.
+     * Enabling snippet execution at all (is_enabled()) is not, by itself,
+     * enough to run it anywhere the environment can't be positively
+     * confirmed safe: RCE has no safe "unknown" default.
+     */
+    public static function is_allowed_on_environment(): bool
+    {
+        $safe_environments = ['local', 'development', 'staging'];
+
+        if (in_array(self::environment_type(), $safe_environments, true)) {
+            return true;
+        }
+
+        $default = defined('WPMCP_ALLOW_PHP_EXEC_ON_PRODUCTION') && WPMCP_ALLOW_PHP_EXEC_ON_PRODUCTION;
+
+        return (bool) apply_filters('wpmcp_allow_php_exec_on_production', $default);
     }
 }
