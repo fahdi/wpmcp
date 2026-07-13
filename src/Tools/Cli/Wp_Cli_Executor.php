@@ -72,6 +72,8 @@ class Wp_Cli_Executor
             if ((microtime(true) - $start) >= $timeout_seconds) {
                 $timed_out = true;
                 proc_terminate($process, 9);
+                $status = proc_get_status($process);
+                self::kill_process_group((int) $status['pid']);
                 break;
             }
 
@@ -95,5 +97,59 @@ class Wp_Cli_Executor
             'exit_code' => $exit_code,
             'timed_out' => $timed_out,
         ];
+    }
+
+    /**
+     * Best-effort defense-in-depth (issue #44 security review, M2) against
+     * grandchild-process leaks on timeout: proc_terminate() above only
+     * signals the direct wp-cli child, so a wp-cli invocation that itself
+     * spawns further children (e.g. an `ssh` process from a command using
+     * --ssh, or a package subprocess) can otherwise survive the timeout
+     * kill and accumulate across repeated calls.
+     *
+     * This is intentionally conservative rather than a full process-group
+     * kill: a proc_open() child on this platform inherits the SAME process
+     * group as the calling PHP process when no new session/group was
+     * started for it (verified: killing that shared group would kill the
+     * PHP process, and whatever spawned it, instead of just the wp-cli
+     * subtree). So the group signal is only sent when the child's process
+     * group can be positively confirmed to differ from this process's own
+     * group; otherwise this is a no-op and the direct-child
+     * proc_terminate() above remains the only kill. Also a no-op wherever
+     * the posix extension is unavailable (e.g. Windows), which is why the
+     * $get_pgid/$kill seams default to null there rather than erroring.
+     *
+     * @param callable|null $get_pgid Test seam: (int $pid): int|false. Defaults to posix_getpgid().
+     * @param callable|null $kill     Test seam: (int $pid, int $signal): bool. Defaults to posix_kill().
+     * @param bool          $posix_available Test seam: force posix-unavailable behavior.
+     */
+    public static function kill_process_group(
+        int $pid,
+        ?callable $get_pgid = null,
+        ?callable $kill = null,
+        bool $posix_available = true
+    ): void {
+        if (! $posix_available || ! function_exists('posix_getpgid') || ! function_exists('posix_kill')) {
+            return;
+        }
+
+        $get_pgid ??= 'posix_getpgid';
+        $kill     ??= 'posix_kill';
+
+        $child_pgid = $get_pgid($pid);
+        if (false === $child_pgid || null === $child_pgid) {
+            return;
+        }
+
+        $own_pgid = $get_pgid(getmypid());
+        if (false === $own_pgid || null === $own_pgid) {
+            return;
+        }
+
+        if ($child_pgid === $own_pgid) {
+            return;
+        }
+
+        $kill(-$child_pgid, 9);
     }
 }
