@@ -2183,7 +2183,11 @@ final class Plugin
      * Safe_Mutation::run() with object_type='post': `_elementor_data` is
      * ordinary postmeta on the page, so the existing post snapshot already
      * captures and restores it, and every write here is undoable with no
-     * change to the safety core.
+     * change to the safety core. generate-widget additionally builds its
+     * settings from the curated Widget_Schema catalog rather than accepting
+     * a raw settings object, so it is the one tool here that never reaches
+     * Safe_Mutation::run() on an unsupported widget type or an incomplete
+     * settings payload.
      */
     private function register_elementor_pro_abilities(Registrar $registrar): void
     {
