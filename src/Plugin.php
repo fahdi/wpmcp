@@ -82,6 +82,10 @@ use WPMCP\Tools\Diagnostics\Get_Debug_Config;
 use WPMCP\Tools\Diagnostics\Get_Debug_Log;
 use WPMCP\Tools\Diagnostics\List_Transients;
 use WPMCP\Tools\Diagnostics\Delete_Transient;
+use WPMCP\Tools\Cron\List_Cron_Events;
+use WPMCP\Tools\Cron\Schedule_Event;
+use WPMCP\Tools\Cron\Unschedule_Event;
+use WPMCP\Tools\Cron\Run_Event;
 use WPMCP\Tools\Elementor\List_Widgets;
 use WPMCP\Tools\Elementor\Get_Widget_Schema;
 use WPMCP\Tools\Elementor\Get_Elementor_Data;
@@ -1316,6 +1320,101 @@ final class Plugin
         $this->register_seo_abilities($registrar);
         $this->register_meta_abilities($registrar);
         $this->register_diagnostics_abilities($registrar);
+        $this->register_cron_abilities($registrar);
+    }
+
+    /**
+     * Register the WP-Cron inspection and scheduling tools as free-tier
+     * abilities (parity gap tracked in issue #28).
+     *
+     * All four are gated at manage_options and tagged domain 'cron': the cron
+     * array can reveal internal hook names and scheduling, and mutating it is
+     * a site-operations-level action, not a content edit. list-cron-events is
+     * 'read'; schedule-event is 'create' and unschedule-event 'delete', both
+     * routed through Safe_Mutation on the 'cron' option so rollback-operation
+     * restores the prior cron array. run-event is 'update' but, like
+     * clear-cache, is not snapshotted (firing a hook is an irreversible side
+     * effect) and is additionally disabled by default behind the
+     * wpmcp_enable_run_cron_event filter, so registering it does not by itself
+     * allow any hook to run.
+     */
+    private function register_cron_abilities(Registrar $registrar): void
+    {
+        $list_cron_events = new List_Cron_Events();
+        $schedule_event   = new Schedule_Event();
+        $unschedule_event = new Unschedule_Event();
+        $run_event        = new Run_Event();
+
+        $registrar->register(new Ability(
+            'wpmcp/list-cron-events',
+            'free',
+            'List the scheduled WP-Cron events (hook, next-run timestamp, recurrence/schedule, interval in seconds, callback args) from the cron array, plus the available schedules from wp_get_schedules(). Optional hook filter. Read-only',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'hook' => [ 'type' => 'string' ],
+                ],
+            ],
+            [$list_cron_events, 'handle'],
+            'manage_options',
+            'cron',
+            'read'
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/schedule-event',
+            'free',
+            'Schedule a recurring event (wp_schedule_event, when a recurrence is given) or a single event (wp_schedule_single_event). The recurrence is validated against wp_get_schedules(). Refuses scheduling core-critical hooks (wp_version_check, wp_update_plugins/themes, wp_scheduled_delete, delete_expired_transients, wp_privacy_delete_old_export_files). Snapshotted via object_type option (the cron option); rollback-operation restores the prior cron array',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'hook'       => [ 'type' => 'string' ],
+                    'recurrence' => [ 'type' => 'string' ],
+                    'timestamp'  => [ 'type' => 'integer' ],
+                    'args'       => [ 'type' => 'array' ],
+                    'session_id' => [ 'type' => 'string' ],
+                ],
+                'required'   => [ 'hook' ],
+            ],
+            [$schedule_event, 'handle'],
+            'manage_options',
+            'cron',
+            'create'
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/unschedule-event',
+            'free',
+            'Unschedule a single occurrence (wp_unschedule_event, when a timestamp and matching args are given) or every event for a hook (wp_clear_scheduled_hook). Unrestricted, including core hooks, but made safe by undoability: snapshotted via object_type option (the cron option), so rollback-operation restores the prior cron array',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'hook'       => [ 'type' => 'string' ],
+                    'timestamp'  => [ 'type' => 'integer' ],
+                    'args'       => [ 'type' => 'array' ],
+                    'session_id' => [ 'type' => 'string' ],
+                ],
+                'required'   => [ 'hook' ],
+            ],
+            [$unschedule_event, 'handle'],
+            'manage_options',
+            'cron',
+            'delete'
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/run-event',
+            'free',
+            'Fire a scheduled cron hook now via do_action(), for debugging scheduled jobs. Disabled by default until a site opts in with the wpmcp_enable_run_cron_event filter, and only fires a hook actually present in the cron array (never an arbitrary string). Always replays the stored event args, never caller-supplied ones. Not snapshotted: firing a hook is an irreversible side effect',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'hook' => [ 'type' => 'string' ],
+                ],
+                'required'   => [ 'hook' ],
+            ],
+            [$run_event, 'handle'],
+            'manage_options',
+            'cron',
+            'update'
+        ));
     }
 
     /**
