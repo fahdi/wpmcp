@@ -15,6 +15,7 @@ use WPMCP\Tools\Context\Get_Site_Context;
 use WPMCP\Tools\Rest\List_Rest_Routes;
 use WPMCP\Tools\Rest\Call_Rest;
 use WPMCP\Tools\Blocks\List_Block_Types;
+use WPMCP\Tools\Blocks\Get_Block_Type;
 use WPMCP\MCP\Ability;
 use WPMCP\MCP\Registrar;
 use WPMCP\Tools\Get_Page;
@@ -1608,6 +1609,7 @@ final class Plugin
     private function register_block_abilities(Registrar $registrar): void
     {
         $list_block_types = new List_Block_Types();
+        $get_block_type   = new Get_Block_Type();
 
         $registrar->register(new Ability(
             'wpmcp/list-block-types',
@@ -1621,6 +1623,22 @@ final class Plugin
                 ],
             ],
             [$list_block_types, 'handle'],
+            'edit_posts',
+            'blocks',
+            'read'
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/get-block-type',
+            'free',
+            'Return full detail for a single registered block type by name: its attributes schema, declared supports, and block-context wiring (uses_context, provides_context). Read-only',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'name' => [ 'type' => 'string' ],
+                ],
+                'required'   => [ 'name' ],
+            ],
+            [$get_block_type, 'handle'],
             'edit_posts',
             'blocks',
             'read'
