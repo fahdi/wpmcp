@@ -173,6 +173,7 @@ use WPMCP\Tools\Menus\Update_Menu_Item;
 use WPMCP\Tools\Menus\Remove_Menu_Item;
 use WPMCP\Tools\Menus\Assign_Menu_To_Location;
 use WPMCP\Tools\Menus\Delete_Menu;
+use WPMCP\Auth\Endpoints as OAuth_Endpoints;
 
 if (! defined('ABSPATH') && ! defined('WPMCP_TESTING')) {
     exit;
@@ -222,6 +223,10 @@ final class Plugin
             // does not fire for wp-admin or REST requests, so authenticated capable
             // users, wp-admin, and the REST/MCP endpoints are never affected by it.
             add_action('template_redirect', [new Maintenance_Guard(), 'enforce']);
+            // OAuth 2.1 + Dynamic Client Registration REST routes (issue #43).
+            // Endpoints::register() itself no-ops unless OAuth_Config::is_enabled()
+            // (default false), so this hook registration is always safe to add.
+            add_action('rest_api_init', [new OAuth_Endpoints(), 'register']);
         }
     }
 
