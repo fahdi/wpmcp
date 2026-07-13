@@ -107,4 +107,22 @@ class I18nAdapterTest extends \WP_UnitTestCase
 
         wp_delete_post($post_id, true);
     }
+
+    public function test_link_post_translations_is_a_safe_noop_without_the_plugin_api(): void
+    {
+        if (function_exists('pll_save_post_translations')) {
+            $this->markTestSkipped('Polylang API is booted; the no-op guard path is not exercised here.');
+        }
+
+        $en = $this->factory()->post->create();
+        $fr = $this->factory()->post->create();
+
+        // With no plugin API loaded the adapter must not fatal.
+        I18n_Adapter::link_post_translations(['en' => $en, 'fr' => $fr]);
+
+        $this->assertSame([], I18n_Adapter::get_post_translations($en));
+
+        wp_delete_post($en, true);
+        wp_delete_post($fr, true);
+    }
 }

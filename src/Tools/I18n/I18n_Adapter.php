@@ -169,6 +169,50 @@ class I18n_Adapter
     }
 
     /**
+     * Link a set of posts as translations of one another, given a
+     * [lang_code => post_id] map, via the active plugin. This is a raw write:
+     * callers are expected to route it through Safe_Mutation themselves. A
+     * no-op when no i18n plugin's API is available.
+     *
+     * Unlike set_post_language(), this relationship spans multiple posts. On
+     * Polylang the group membership is stored via the 'post_translations'
+     * taxonomy across all the involved posts, so a snapshot of any single post
+     * cannot capture (or restore) the whole group's state.
+     */
+    public static function link_post_translations(array $lang_to_post_id): void
+    {
+        $active = self::active_plugin();
+
+        if ('polylang' === $active && function_exists('pll_save_post_translations')) {
+            pll_save_post_translations($lang_to_post_id);
+            return;
+        }
+
+        if ('wpml' === $active && function_exists('do_action')) {
+            // WPML links translations by assigning each post the same trid.
+            // Best-effort and untested against a real WPML install (WPML is a
+            // paid plugin, absent from wordpress.org and from this harness).
+            $trid = null;
+            foreach ($lang_to_post_id as $lang_code => $post_id) {
+                $post_id      = (int) $post_id;
+                $element_type = 'post_' . get_post_type($post_id);
+                do_action(
+                    'wpml_set_element_language_details',
+                    [
+                        'element_id'    => $post_id,
+                        'element_type'  => $element_type,
+                        'trid'          => $trid,
+                        'language_code' => (string) $lang_code,
+                    ]
+                );
+                if (null === $trid && function_exists('apply_filters')) {
+                    $trid = apply_filters('wpml_element_trid', null, $post_id, $element_type);
+                }
+            }
+        }
+    }
+
+    /**
      * Normalize Polylang's PLL_Language objects to the neutral language shape.
      * Pure: takes already-fetched objects so it is testable without booting
      * Polylang. Each object is expected to expose ->slug, ->name, and
