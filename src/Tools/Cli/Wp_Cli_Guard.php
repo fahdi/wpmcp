@@ -139,4 +139,44 @@ class Wp_Cli_Guard
 
         return false;
     }
+
+    /**
+     * Characters that must never appear in an individual argv element. The
+     * executor already runs argv via proc_open as an array (never a shell
+     * string), so none of these are actually shell-interpreted; this is
+     * defense-in-depth against a future refactor reintroducing a shell
+     * string, and against the NUL byte specifically, which some C library
+     * calls treat as a string terminator regardless of shell involvement.
+     */
+    private const DANGEROUS_CHARACTERS = [
+        ';', '|', '&', '$', '`', '>', '<', '(', ')', '{', '}', "\n", "\r", "\0",
+    ];
+
+    /**
+     * Validate every element of $argv, rejecting the whole command if any
+     * single argument contains a shell metacharacter or NUL byte, or if
+     * $argv is empty.
+     *
+     * @return true|\WP_Error
+     */
+    public static function validate_args(array $argv)
+    {
+        if ([] === $argv) {
+            return new \WP_Error('wp_cli_unsafe_argument', 'No arguments were given.');
+        }
+
+        foreach ($argv as $arg) {
+            $arg = (string) $arg;
+            foreach (self::DANGEROUS_CHARACTERS as $char) {
+                if (false !== strpos($arg, $char)) {
+                    return new \WP_Error(
+                        'wp_cli_unsafe_argument',
+                        'Argument contains a disallowed character and was rejected.'
+                    );
+                }
+            }
+        }
+
+        return true;
+    }
 }
