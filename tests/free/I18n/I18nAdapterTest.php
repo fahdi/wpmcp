@@ -71,4 +71,23 @@ class I18nAdapterTest extends \WP_UnitTestCase
             $out
         );
     }
+
+    public function test_normalize_translations_enriches_with_titles(): void
+    {
+        $en = $this->factory()->post->create(['post_title' => 'Hello']);
+        $fr = $this->factory()->post->create(['post_title' => 'Bonjour']);
+
+        $out = I18n_Adapter::normalize_translations(['en' => $en, 'fr' => $fr]);
+
+        $this->assertSame(
+            [
+                'en' => ['post_id' => $en, 'title' => 'Hello'],
+                'fr' => ['post_id' => $fr, 'title' => 'Bonjour'],
+            ],
+            $out
+        );
+
+        wp_delete_post($en, true);
+        wp_delete_post($fr, true);
+    }
 }

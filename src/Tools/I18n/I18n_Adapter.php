@@ -82,6 +82,59 @@ class I18n_Adapter
     }
 
     /**
+     * A post's translations in the neutral shape, from the active plugin:
+     * [lang_code => ['post_id' => int, 'title' => string]]. Returns an empty
+     * array when no i18n plugin is active or the post has no translations.
+     */
+    public static function get_post_translations(int $post_id): array
+    {
+        $active = self::active_plugin();
+
+        if ('polylang' === $active && function_exists('pll_get_post_translations')) {
+            $translations = pll_get_post_translations($post_id);
+            return self::normalize_translations(is_array($translations) ? $translations : []);
+        }
+
+        if ('wpml' === $active && function_exists('apply_filters')) {
+            // WPML's modern API returns translation elements keyed by language
+            // code, each exposing an ->element_id (the translated post id).
+            $element_type = 'post_' . get_post_type($post_id);
+            $elements     = apply_filters('wpml_get_element_translations', null, $post_id, $element_type);
+            $map          = [];
+            foreach ((array) $elements as $code => $element) {
+                if (isset($element->element_id)) {
+                    $map[(string) $code] = (int) $element->element_id;
+                }
+            }
+            return self::normalize_translations($map);
+        }
+
+        return [];
+    }
+
+    /**
+     * Enrich a [lang_code => post_id] map into the neutral translations shape
+     * [lang_code => ['post_id' => int, 'title' => string]] by looking up each
+     * post's title. Pure aside from the get_the_title() WordPress lookups, so
+     * it is testable with real factory-created posts without booting an i18n
+     * plugin.
+     */
+    public static function normalize_translations(array $lang_to_post_id): array
+    {
+        $out = [];
+
+        foreach ($lang_to_post_id as $code => $post_id) {
+            $post_id = (int) $post_id;
+            $out[(string) $code] = [
+                'post_id' => $post_id,
+                'title'   => (string) get_the_title($post_id),
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
      * Normalize Polylang's PLL_Language objects to the neutral language shape.
      * Pure: takes already-fetched objects so it is testable without booting
      * Polylang. Each object is expected to expose ->slug, ->name, and
