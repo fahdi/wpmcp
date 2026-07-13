@@ -60,7 +60,17 @@ class Client_Registration
             return self::deny('registration_rate_limited', 'Too many client registration attempts. Try again later.');
         }
 
-        $redirect_uris = array_values(array_filter(array_map('strval', $params['redirect_uris'] ?? [])));
+        $raw_redirect_uris = $params['redirect_uris'] ?? [];
+        if (! is_array($raw_redirect_uris)) {
+            return self::deny('invalid_redirect_uri', 'redirect_uris must be an array of strings.');
+        }
+        foreach ($raw_redirect_uris as $uri) {
+            if (! is_string($uri) && ! is_numeric($uri)) {
+                return self::deny('invalid_redirect_uri', 'Every redirect_uri must be a string.');
+            }
+        }
+
+        $redirect_uris = array_values(array_filter(array_map('strval', $raw_redirect_uris)));
         if ([] === $redirect_uris) {
             return self::deny('invalid_redirect_uri', 'At least one redirect_uri is required.');
         }

@@ -73,6 +73,31 @@ class ClientRegistrationTest extends \WP_UnitTestCase
         $this->assertSame('invalid_redirect_uri', $result->get_error_code());
     }
 
+    public function test_non_array_redirect_uris_is_rejected_not_a_fatal_error(): void
+    {
+        // A malicious or malformed request can send redirect_uris as any
+        // JSON type, not just an array; this must fail cleanly with
+        // invalid_redirect_uri, never a fatal TypeError from array_map().
+        $result = Client_Registration::register([
+            'client_name'   => 'Bad Shape',
+            'redirect_uris' => 'https://example.com/cb',
+        ], 'ip:203.0.113.20');
+
+        $this->assertInstanceOf(\WP_Error::class, $result);
+        $this->assertSame('invalid_redirect_uri', $result->get_error_code());
+    }
+
+    public function test_non_array_redirect_uris_containing_non_scalars_is_rejected(): void
+    {
+        $result = Client_Registration::register([
+            'client_name'   => 'Bad Shape',
+            'redirect_uris' => [['nested' => 'array']],
+        ], 'ip:203.0.113.21');
+
+        $this->assertInstanceOf(\WP_Error::class, $result);
+        $this->assertSame('invalid_redirect_uri', $result->get_error_code());
+    }
+
     public function test_invalid_redirect_uri_is_rejected(): void
     {
         $result = Client_Registration::register([
