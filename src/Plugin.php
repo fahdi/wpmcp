@@ -20,6 +20,7 @@ use WPMCP\Tools\Blocks\Parse_Blocks;
 use WPMCP\Tools\Blocks\Serialize_Blocks;
 use WPMCP\Tools\Structure\List_Shortcodes;
 use WPMCP\Tools\Structure\Render_Shortcode;
+use WPMCP\Tools\Structure\List_Sidebars;
 use WPMCP\MCP\Ability;
 use WPMCP\MCP\Registrar;
 use WPMCP\Tools\Get_Page;
@@ -1698,6 +1699,7 @@ final class Plugin
     {
         $list_shortcodes  = new List_Shortcodes();
         $render_shortcode = new Render_Shortcode();
+        $list_sidebars    = new List_Sidebars();
 
         $registrar->register(new Ability(
             'wpmcp/list-shortcodes',
@@ -1726,6 +1728,19 @@ final class Plugin
                 'required'   => [ 'shortcode' ],
             ],
             [$render_shortcode, 'handle'],
+            'edit_posts',
+            'structure',
+            'read'
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/list-sidebars',
+            'free',
+            'List the sidebars/widget areas registered via register_sidebar(): id, name, description. Read-only',
+            [
+                'type'       => 'object',
+                'properties' => [],
+            ],
+            [$list_sidebars, 'handle'],
             'edit_posts',
             'structure',
             'read'
