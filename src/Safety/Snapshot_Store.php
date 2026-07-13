@@ -95,6 +95,15 @@ class Snapshot_Store
         return $wpdb->get_results($wpdb->prepare("SELECT * FROM " . self::table_name() . " ORDER BY id DESC LIMIT %d", $limit), ARRAY_A);
     }
 
+    /**
+     * Delete all but the $keep most recent snapshot rows. Additionally
+     * deletes each pruned row's attachment file backup dir (if any), via
+     * File_Backup::delete_backup_dir(), so a force-deleted attachment's
+     * backed-up bytes do not accumulate under wp-content/uploads/ forever
+     * once its snapshot has aged out and can no longer be rolled back to.
+     * Calling delete_backup_dir() for every pruned operation_id is a no-op
+     * for the (overwhelming majority of) rows that never had one.
+     */
     public static function prune(int $keep): int
     {
         global $wpdb;
@@ -103,6 +112,15 @@ class Snapshot_Store
         if (null === $cutoff) {
             return 0;
         }
-        return (int) $wpdb->query($wpdb->prepare("DELETE FROM {$t} WHERE id <= %d", $cutoff));
+
+        $pruned_op_ids = $wpdb->get_col($wpdb->prepare("SELECT operation_id FROM {$t} WHERE id <= %d", $cutoff));
+
+        $deleted = (int) $wpdb->query($wpdb->prepare("DELETE FROM {$t} WHERE id <= %d", $cutoff));
+
+        foreach ((array) $pruned_op_ids as $operation_id) {
+            File_Backup::delete_backup_dir((string) $operation_id);
+        }
+
+        return $deleted;
     }
 }
