@@ -90,4 +90,21 @@ class I18nAdapterTest extends \WP_UnitTestCase
         wp_delete_post($en, true);
         wp_delete_post($fr, true);
     }
+
+    public function test_set_post_language_is_a_safe_noop_without_the_plugin_api(): void
+    {
+        if (function_exists('pll_set_post_language')) {
+            $this->markTestSkipped('Polylang API is booted; the no-op guard path is not exercised here.');
+        }
+
+        $post_id = $this->factory()->post->create();
+
+        // With no plugin API loaded the adapter must not fatal; it simply
+        // performs no language assignment.
+        I18n_Adapter::set_post_language($post_id, 'en');
+
+        $this->assertSame([], I18n_Adapter::get_post_translations($post_id));
+
+        wp_delete_post($post_id, true);
+    }
 }

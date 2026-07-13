@@ -135,6 +135,40 @@ class I18n_Adapter
     }
 
     /**
+     * Assign a post to a language by its code, via the active plugin. This is
+     * a raw write: callers are expected to route it through Safe_Mutation
+     * themselves so the change is snapshotted and undoable. A no-op when no
+     * i18n plugin's API is available.
+     *
+     * For Polylang a post's language IS a term in the 'language' taxonomy, so
+     * the existing post snapshot (which captures every taxonomy assigned to
+     * the post's type, including 'language') records and restores it exactly.
+     */
+    public static function set_post_language(int $post_id, string $lang_code): void
+    {
+        $active = self::active_plugin();
+
+        if ('polylang' === $active && function_exists('pll_set_post_language')) {
+            pll_set_post_language($post_id, $lang_code);
+            return;
+        }
+
+        if ('wpml' === $active && function_exists('do_action')) {
+            // WPML stores element language details via this action. Best-effort
+            // and untested against a real WPML install (WPML is a paid plugin,
+            // not installable from wordpress.org, so it is absent here).
+            do_action(
+                'wpml_set_element_language_details',
+                [
+                    'element_id'   => $post_id,
+                    'element_type' => 'post_' . get_post_type($post_id),
+                    'language_code' => $lang_code,
+                ]
+            );
+        }
+    }
+
+    /**
      * Normalize Polylang's PLL_Language objects to the neutral language shape.
      * Pure: takes already-fetched objects so it is testable without booting
      * Polylang. Each object is expected to expose ->slug, ->name, and
