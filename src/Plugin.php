@@ -134,6 +134,7 @@ use WPMCP\Tools\Multisite\Is_Multisite;
 use WPMCP\Tools\Multisite\Get_Network_Info;
 use WPMCP\Tools\Multisite\List_Network_Sites;
 use WPMCP\Tools\Multisite\Get_Site_Details;
+use WPMCP\Tools\Analytics\Get_Analytics_Connection_Status;
 use WPMCP\Tools\Identity\Create_Identity;
 use WPMCP\Tools\Identity\List_Identities;
 use WPMCP\Tools\Identity\Delete_Identity;
@@ -1435,6 +1436,7 @@ final class Plugin
         $this->register_connect_abilities($registrar);
         $this->register_governance_abilities($registrar);
         $this->register_multisite_abilities($registrar);
+        $this->register_analytics_abilities($registrar);
     }
 
     /**
@@ -2285,6 +2287,55 @@ final class Plugin
             [$get_site_details, 'handle'],
             'manage_network',
             'multisite',
+            'read'
+        ));
+    }
+
+    /**
+     * Register the analytics/Search Console reporting tools as free-tier
+     * abilities (issue #49).
+     *
+     * FREE tier, matching every other "read data from a connected
+     * third-party plugin/service" tool group in this codebase: Multisite
+     * introspection, I18n (Polylang/WPML), SEO status/meta, and ALL of
+     * WooCommerce including get-sales-report (a reporting tool directly
+     * analogous to analytics summaries) are all free-tier. 'pro' tier here is
+     * reserved for a different kind of feature: deep content scoring/analysis
+     * (analyze-seo, analyze-accessibility, check-contrast, extract-content,
+     * see register_analysis_abilities()) and deep Elementor element-tree
+     * editing. Analytics summary/top-pages/GSC-summary/GSC-queries are the
+     * same shape as WooCommerce's sales report or Multisite's site listing:
+     * basic read/reporting access to a connected system, not deep analysis.
+     *
+     * get-analytics-connection-status is registered unconditionally: it is
+     * the tool a caller uses to discover whether any analytics provider is
+     * connected at all, so it must be reachable regardless of connection
+     * state (mirrors wpmcp/is-multisite and get-seo-status). The remaining
+     * data tools in this group are added incrementally alongside it below.
+     *
+     * Gated at manage_options, matching the issue's spec: analytics/Search
+     * Console data, even a "not connected" status check, is
+     * site-administration information, not a content-editing capability.
+     *
+     * This is deliberately READ-ONLY: analytics/Search Console summaries and
+     * reports only. There is no write path to Google or to this site here,
+     * so none of these tools touch Safe_Mutation.
+     */
+    private function register_analytics_abilities(Registrar $registrar): void
+    {
+        $get_connection_status = new Get_Analytics_Connection_Status();
+
+        $registrar->register(new Ability(
+            'wpmcp/get-analytics-connection-status',
+            'free',
+            'Report whether an analytics provider (Google Site Kit or explicitly configured credentials) is active and appears connected. Always registered so a caller can discover state before using the rest of the analytics tool group. Read-only',
+            [
+                'type'       => 'object',
+                'properties' => [],
+            ],
+            [$get_connection_status, 'handle'],
+            'manage_options',
+            'analytics',
             'read'
         ));
     }
