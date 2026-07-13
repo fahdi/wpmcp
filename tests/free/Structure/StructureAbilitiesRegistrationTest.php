@@ -8,6 +8,7 @@ class StructureAbilitiesRegistrationTest extends \WP_UnitTestCase
         'wpmcp/list-shortcodes',
         'wpmcp/render-shortcode',
         'wpmcp/list-sidebars',
+        'wpmcp/list-sidebar-widgets',
     ];
 
     public function test_all_structure_tools_are_registered_as_free_abilities(): void

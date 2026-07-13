@@ -21,6 +21,7 @@ use WPMCP\Tools\Blocks\Serialize_Blocks;
 use WPMCP\Tools\Structure\List_Shortcodes;
 use WPMCP\Tools\Structure\Render_Shortcode;
 use WPMCP\Tools\Structure\List_Sidebars;
+use WPMCP\Tools\Structure\List_Sidebar_Widgets;
 use WPMCP\MCP\Ability;
 use WPMCP\MCP\Registrar;
 use WPMCP\Tools\Get_Page;
@@ -1697,9 +1698,10 @@ final class Plugin
      */
     private function register_structure_abilities(Registrar $registrar): void
     {
-        $list_shortcodes  = new List_Shortcodes();
-        $render_shortcode = new Render_Shortcode();
-        $list_sidebars    = new List_Sidebars();
+        $list_shortcodes      = new List_Shortcodes();
+        $render_shortcode     = new Render_Shortcode();
+        $list_sidebars        = new List_Sidebars();
+        $list_sidebar_widgets = new List_Sidebar_Widgets();
 
         $registrar->register(new Ability(
             'wpmcp/list-shortcodes',
@@ -1741,6 +1743,22 @@ final class Plugin
                 'properties' => [],
             ],
             [$list_sidebars, 'handle'],
+            'edit_posts',
+            'structure',
+            'read'
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/list-sidebar-widgets',
+            'free',
+            'List the widgets assigned to a single sidebar (by sidebar_id): widget id and display name, from wp_get_sidebars_widgets() resolved against the registered widgets. Read-only',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'sidebar_id' => [ 'type' => 'string' ],
+                ],
+                'required'   => [ 'sidebar_id' ],
+            ],
+            [$list_sidebar_widgets, 'handle'],
             'edit_posts',
             'structure',
             'read'
