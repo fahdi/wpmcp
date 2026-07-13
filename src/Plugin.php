@@ -174,6 +174,7 @@ use WPMCP\Tools\Menus\Remove_Menu_Item;
 use WPMCP\Tools\Menus\Assign_Menu_To_Location;
 use WPMCP\Tools\Menus\Delete_Menu;
 use WPMCP\Auth\Endpoints as OAuth_Endpoints;
+use WPMCP\Auth\Bearer_Auth;
 
 if (! defined('ABSPATH') && ! defined('WPMCP_TESTING')) {
     exit;
@@ -227,6 +228,11 @@ final class Plugin
             // Endpoints::register() itself no-ops unless OAuth_Config::is_enabled()
             // (default false), so this hook registration is always safe to add.
             add_action('rest_api_init', [new OAuth_Endpoints(), 'register']);
+            // Resolves a valid OAuth Bearer token to its bound WP user via
+            // determine_current_user, so Registrar's existing capability
+            // checks work for OAuth callers with no change to Registrar
+            // itself. Also a no-op unless OAuth_Config::is_enabled().
+            (new Bearer_Auth())->register();
         }
     }
 
