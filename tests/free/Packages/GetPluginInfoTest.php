@@ -68,4 +68,27 @@ class GetPluginInfoTest extends \WP_UnitTestCase
         $this->expectException(\InvalidArgumentException::class);
         (new Get_Plugin_Info())->handle([]);
     }
+
+    public function test_surfaces_wp_error_cleanly(): void
+    {
+        add_filter('plugins_api', [$this, 'mock_plugins_api_error'], 10, 3);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Could not fetch plugin info for "unknown-plugin": plugin not found');
+
+        try {
+            (new Get_Plugin_Info())->handle(['slug' => 'unknown-plugin']);
+        } finally {
+            remove_filter('plugins_api', [$this, 'mock_plugins_api_error'], 10);
+        }
+    }
+
+    public function mock_plugins_api_error($result, $action, $args)
+    {
+        if ('plugin_information' === $action) {
+            return new \WP_Error('plugins_api_failed', 'plugin not found');
+        }
+
+        return $result;
+    }
 }
