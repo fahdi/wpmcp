@@ -159,4 +159,19 @@ class ConvertHtmlToBlocksTest extends \WP_UnitTestCase
         $this->assertSame('core/code', $blocks[0]['blockName']);
         $this->assertStringContainsString('echo "hi";', $blocks[0]['innerHTML']);
     }
+
+    public function test_converts_hr_to_core_separator(): void
+    {
+        $html = '<hr>';
+
+        $out = (new Convert_Html_To_Blocks())->handle(['html' => $html]);
+
+        $blocks = array_values(array_filter(
+            parse_blocks($out['markup']),
+            static fn (array $block): bool => null !== $block['blockName']
+        ));
+
+        $this->assertCount(1, $blocks);
+        $this->assertSame('core/separator', $blocks[0]['blockName']);
+    }
 }

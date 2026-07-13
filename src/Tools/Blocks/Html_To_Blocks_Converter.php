@@ -72,6 +72,7 @@ class Html_To_Blocks_Converter
             'blockquote' => self::leaf_block('core/quote', [], $outer_html),
             'pre'        => self::leaf_block('core/code', [], self::pre_to_code_html($document, $node)),
             'code'       => self::leaf_block('core/code', [], self::pre_to_code_html($document, $node, wrap_in_pre: true)),
+            'hr'         => self::leaf_block('core/separator', [], '<hr class="wp-block-separator"/>'),
             default      => self::html_block($outer_html),
         };
     }
