@@ -62,6 +62,24 @@ class Get_Site_Context
             'locale'       => get_locale(),
             'timezone'     => get_option('timezone_string'),
             'is_multisite' => is_multisite(),
+            'capabilities' => $this->capabilities(),
+        ];
+    }
+
+    /**
+     * Which third-party integrations are active. Detection idioms mirror the
+     * ones already used elsewhere in the plugin (Elementor_Page_Data,
+     * SEO_Adapter) so this stays consistent with how the rest of the code
+     * checks for these plugins.
+     */
+    private function capabilities(): array
+    {
+        return [
+            'elementor'   => class_exists('\\Elementor\\Plugin'),
+            'woocommerce' => class_exists('WooCommerce') && function_exists('WC'),
+            'acf'         => function_exists('get_field') || class_exists('ACF'),
+            'yoast'       => defined('WPSEO_VERSION') || class_exists('WPSEO_Options'),
+            'rankmath'    => class_exists('RankMath'),
         ];
     }
 }

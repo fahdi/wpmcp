@@ -77,4 +77,15 @@ class GetSiteContextTest extends \WP_UnitTestCase
         $this->assertSame(get_option('timezone_string'), $out['timezone']);
         $this->assertSame(is_multisite(), $out['is_multisite']);
     }
+
+    public function test_reports_active_integrations(): void
+    {
+        $out = (new Get_Site_Context())->handle([]);
+
+        $this->assertTrue($out['capabilities']['elementor']);
+        $this->assertTrue($out['capabilities']['woocommerce']);
+        $this->assertTrue($out['capabilities']['acf']);
+        $this->assertSame('yoast' === wpmcp_seo_plugin(), $out['capabilities']['yoast']);
+        $this->assertSame('rankmath' === wpmcp_seo_plugin(), $out['capabilities']['rankmath']);
+    }
 }
