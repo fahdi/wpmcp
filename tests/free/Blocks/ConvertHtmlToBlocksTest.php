@@ -111,4 +111,20 @@ class ConvertHtmlToBlocksTest extends \WP_UnitTestCase
             array_column($second_parse, 'blockName')
         );
     }
+
+    public function test_converts_blockquote_to_core_quote(): void
+    {
+        $html = '<blockquote><p>A quote</p></blockquote>';
+
+        $out = (new Convert_Html_To_Blocks())->handle(['html' => $html]);
+
+        $blocks = array_values(array_filter(
+            parse_blocks($out['markup']),
+            static fn (array $block): bool => null !== $block['blockName']
+        ));
+
+        $this->assertCount(1, $blocks);
+        $this->assertSame('core/quote', $blocks[0]['blockName']);
+        $this->assertStringContainsString('A quote', $blocks[0]['innerHTML']);
+    }
 }
