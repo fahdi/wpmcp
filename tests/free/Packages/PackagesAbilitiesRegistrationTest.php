@@ -16,6 +16,8 @@ class PackagesAbilitiesRegistrationTest extends \WP_UnitTestCase
         'wpmcp/install-theme',
         'wpmcp/update-theme',
         'wpmcp/delete-theme',
+        'wpmcp/search-plugins',
+        'wpmcp/get-plugin-info',
     ];
 
     public function test_all_package_tools_are_registered_as_free_abilities(): void
@@ -58,6 +60,32 @@ class PackagesAbilitiesRegistrationTest extends \WP_UnitTestCase
             'wpmcp/update-theme',
             'wpmcp/delete-theme',
         ];
+
+        $abilities = wp_get_abilities();
+
+        $subscriber = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($subscriber);
+        foreach ($names as $name) {
+            $this->assertFalse($abilities[ $name ]->check_permissions(), "{$name} must deny a subscriber");
+        }
+
+        $admin = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin);
+        foreach ($names as $name) {
+            $this->assertTrue($abilities[ $name ]->check_permissions(), "{$name} must allow an administrator");
+        }
+    }
+
+    /**
+     * search-plugins and get-plugin-info are read-only wp.org lookups: they
+     * require install_plugins (same gate as install-plugin, since browsing
+     * the directory is part of the install workflow), so they must be
+     * denied to a subscriber and allowed to an administrator exactly like
+     * the mutation tools above.
+     */
+    public function test_search_abilities_are_gated_by_install_plugins_capability(): void
+    {
+        $names = ['wpmcp/search-plugins', 'wpmcp/get-plugin-info'];
 
         $abilities = wp_get_abilities();
 

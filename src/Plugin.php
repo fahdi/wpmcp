@@ -85,6 +85,8 @@ use WPMCP\Tools\Packages\Switch_Theme;
 use WPMCP\Tools\Packages\Install_Theme;
 use WPMCP\Tools\Packages\Update_Theme;
 use WPMCP\Tools\Packages\Delete_Theme;
+use WPMCP\Tools\Packages\Search_Plugins;
+use WPMCP\Tools\Packages\Get_Plugin_Info;
 use WPMCP\Tools\Database\List_Tables;
 use WPMCP\Tools\Database\Describe_Table;
 use WPMCP\Tools\Database\Query;
@@ -1036,6 +1038,45 @@ final class Plugin
             'delete_themes',
             'packages',
             'delete'
+        ));
+
+        $search_plugins  = new Search_Plugins();
+        $get_plugin_info = new Get_Plugin_Info();
+
+        $registrar->register(new Ability(
+            'wpmcp/search-plugins',
+            'free',
+            'Search the wordpress.org plugin directory by keyword, with optional tag/author filters and a capped per_page',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'query'    => [ 'type' => 'string' ],
+                    'per_page' => [ 'type' => 'integer' ],
+                    'tag'      => [ 'type' => 'string' ],
+                    'author'   => [ 'type' => 'string' ],
+                ],
+                'required'   => [ 'query' ],
+            ],
+            [$search_plugins, 'handle'],
+            'install_plugins',
+            'packages',
+            'read'
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/get-plugin-info',
+            'free',
+            'Fetch full wordpress.org plugin directory info for a slug: version, rating, installs, homepage, download link, and compatibility',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'slug' => [ 'type' => 'string' ],
+                ],
+                'required'   => [ 'slug' ],
+            ],
+            [$get_plugin_info, 'handle'],
+            'install_plugins',
+            'packages',
+            'read'
         ));
 
         $list_tables    = new List_Tables();
