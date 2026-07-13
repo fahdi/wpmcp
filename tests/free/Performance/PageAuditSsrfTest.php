@@ -80,6 +80,27 @@ class PageAuditSsrfTest extends \WP_UnitTestCase
         $this->assertSame('<html>ok</html>', $result['body']);
     }
 
+    /**
+     * Count how many callbacks are currently registered on $hook, across all
+     * priorities. Used instead of has_filter($hook) (no callback argument),
+     * which only reports whether the hook is non-empty at all and would be
+     * fooled by unrelated callbacks other code may already have registered.
+     */
+    private function count_filters(string $hook): int
+    {
+        global $wp_filter;
+
+        if (! isset($wp_filter[ $hook ])) {
+            return 0;
+        }
+
+        $count = 0;
+        foreach ($wp_filter[ $hook ]->callbacks as $callbacks) {
+            $count += count($callbacks);
+        }
+        return $count;
+    }
+
     public function serve_canned_response($preempt, $parsed_args, $url)
     {
         return [
@@ -168,5 +189,75 @@ class PageAuditSsrfTest extends \WP_UnitTestCase
             'response' => ['code' => 302, 'message' => 'Found'],
             'cookies'  => [],
         ];
+    }
+
+    public function test_pick_pinned_ip_returns_the_literal_ip_for_an_ip_host(): void
+    {
+        $audit  = new Page_Audit();
+        $method = new \ReflectionMethod($audit, 'pick_pinned_ip');
+
+        $this->assertSame('93.184.216.34', $method->invoke($audit, '93.184.216.34'));
+    }
+
+    public function test_pick_pinned_ip_returns_the_first_public_candidate_from_the_resolver(): void
+    {
+        $audit  = new Page_Audit(static fn (string $host): array => ['93.184.216.34', '203.0.113.9']);
+        $method = new \ReflectionMethod($audit, 'pick_pinned_ip');
+
+        $this->assertSame('93.184.216.34', $method->invoke($audit, 'example.test'));
+    }
+
+    public function test_pick_pinned_ip_returns_null_when_the_resolver_yields_no_candidates(): void
+    {
+        $audit  = new Page_Audit(static fn (string $host): array => []);
+        $method = new \ReflectionMethod($audit, 'pick_pinned_ip');
+
+        $this->assertNull($method->invoke($audit, 'unresolvable.test'));
+    }
+
+    public function test_fetch_pins_the_validated_ip_via_curlopt_resolve_and_removes_the_filter_after(): void
+    {
+        if (! function_exists('curl_init')) {
+            $this->markTestSkipped('curl is not available in this environment');
+        }
+
+        // pre_http_request fires before the curl transport is selected, so
+        // this short-circuits the request (no real network call) while still
+        // letting us inspect, at that exact moment, whether fetch() has wired
+        // up the scoped http_api_curl pin for this request. We count
+        // http_api_curl callbacks before/after rather than asserting the bare
+        // hook is empty, because unrelated code (e.g. WooCommerce's
+        // WC_HTTPS::http_api_curl) may already be registered on it globally.
+        $count_before             = $this->count_filters('http_api_curl');
+        $seen_pin_during_request  = null;
+        $count_during             = null;
+        $capture                  = function ($preempt, $parsed_args, $url) use (&$seen_pin_during_request, &$count_during) {
+            $count_during            = $this->count_filters('http_api_curl');
+            $seen_pin_during_request = $this->audit->get_last_pinned_ip();
+            return new \WP_Error('short_circuited', 'test short-circuit before transport dispatch');
+        };
+        add_filter('pre_http_request', $capture, 20, 3);
+        remove_filter('pre_http_request', [$this, 'record_and_fail'], 10);
+
+        $audit        = new Page_Audit(static fn (string $host): array => ['93.184.216.34']);
+        $this->audit  = $audit;
+        $result       = $audit->fetch('http://example-pin.test/');
+
+        remove_filter('pre_http_request', $capture, 20);
+        add_filter('pre_http_request', [$this, 'record_and_fail'], 10, 3);
+
+        $this->assertSame($count_before + 1, $count_during, 'fetch() must register exactly one additional http_api_curl callback for the duration of the request');
+        $this->assertSame('93.184.216.34', $seen_pin_during_request, 'fetch() must pin the validated resolved IP');
+        $this->assertSame('93.184.216.34', $audit->get_last_pinned_ip());
+        $this->assertSame($count_before, $this->count_filters('http_api_curl'), 'the http_api_curl pin filter must be removed once the request completes, leaving no net change');
+    }
+
+    public function test_fetch_builds_the_curl_resolve_entry_for_the_pinned_host_and_port(): void
+    {
+        $audit  = new Page_Audit();
+        $method = new \ReflectionMethod($audit, 'build_curl_resolve_entry');
+
+        $this->assertSame('example.test:80:93.184.216.34', $method->invoke($audit, 'example.test', 80, '93.184.216.34'));
+        $this->assertSame('example.test:443:93.184.216.34', $method->invoke($audit, 'example.test', 443, '93.184.216.34'));
     }
 }
