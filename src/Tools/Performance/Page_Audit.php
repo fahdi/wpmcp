@@ -18,6 +18,14 @@ class Page_Audit
     private $resolver;
 
     /**
+     * @var null|string The IP pinned via CURLOPT_RESOLVE for the most recent
+     *      fetch() call, or null if no pin was applied (curl unavailable, or
+     *      resolution failed). Test seam: lets a test assert what was pinned
+     *      without inspecting the WordPress HTTP filter internals directly.
+     */
+    private ?string $last_pinned_ip = null;
+
+    /**
      * @param null|callable(string):string[] $resolver Test seam for the DNS
      *        resolution step. Defaults to real A/AAAA lookups in production.
      */
@@ -27,20 +35,40 @@ class Page_Audit
     }
 
     /**
+     * The IP pinned via CURLOPT_RESOLVE for the most recent fetch() call, or
+     * null if none was pinned. Test seam only; not used by production logic.
+     */
+    public function get_last_pinned_ip(): ?string
+    {
+        return $this->last_pinned_ip;
+    }
+
+    /**
      * Perform the HTTP fetch and normalize the response.
      *
      * SSRF model. The load-bearing controls are (a) the caller's same-host
-     * gate, which only ever asks to audit the site's own URL, and (b)
-     * wp_safe_remote_get(), which re-resolves and revalidates the target on
-     * every hop against WordPress's own allow/deny rules. We also pass
-     * redirection => 0, so a 3xx is surfaced as a finding rather than chased
-     * into internal space.
+     * gate, which only ever asks to audit the site's own URL, (b) the
+     * resolves_to_private_ip() pre-check, which resolves the host and
+     * refuses private/loopback/reserved targets before any request is made,
+     * and (c) an IP pin: once a public IP has been validated, we force the
+     * actual connection to that exact IP via CURLOPT_RESOLVE (set through a
+     * scoped http_api_curl filter, added immediately before and removed
+     * immediately after this one request). This closes the DNS-rebinding gap
+     * where a host could resolve to a public IP at validation time and a
+     * private/internal IP at connect time: WordPress's HTTP layer never gets
+     * a chance to re-resolve the host itself, because curl is told exactly
+     * which IP to use for it.
      *
-     * The resolves_to_private_ip() pre-check below is advisory
-     * defense-in-depth only: it does NOT gate the actual connection (that
-     * request re-resolves independently), and a TOCTOU gap remains between
-     * the pre-check and the real lookup. Closing that with IP pinning is
-     * tracked as a follow-up (#12).
+     * The pin depends on the curl transport (curl_setopt(CURLOPT_RESOLVE)).
+     * If curl is unavailable, WordPress falls back to the streams transport,
+     * which has no equivalent pinning hook; in that case we still send the
+     * request via wp_safe_remote_get(), which independently re-resolves and
+     * revalidates the target against WordPress's own allow/deny rules on
+     * every hop. That is a materially weaker guarantee than pinning (a
+     * TOCTOU window remains), but it is the best available without curl and
+     * matches this method's pre-pinning behavior. We also pass
+     * redirection => 0 in both cases, so a 3xx is surfaced as a finding
+     * rather than chased into internal space.
      *
      * @return array { ok, status_code, response_ms, total_bytes, headers, body, error, host }
      */
@@ -55,6 +83,21 @@ class Page_Audit
             ];
         }
 
+        $this->last_pinned_ip = null;
+        $pin_callback          = null;
+        $pinned_ip             = function_exists('curl_init') ? $this->pick_pinned_ip($host) : null;
+
+        if (null !== $pinned_ip) {
+            $port         = (int) (wp_parse_url($url, PHP_URL_PORT) ?: ('https' === wp_parse_url($url, PHP_URL_SCHEME) ? 443 : 80));
+            $resolve_entry = $this->build_curl_resolve_entry($host, $port, $pinned_ip);
+            $pin_callback  = static function ($handle) use ($resolve_entry) {
+                curl_setopt($handle, CURLOPT_RESOLVE, [$resolve_entry]);
+                return $handle;
+            };
+            add_filter('http_api_curl', $pin_callback);
+            $this->last_pinned_ip = $pinned_ip;
+        }
+
         $start = microtime(true);
         $response = wp_safe_remote_get($url, [
             'timeout'     => $timeout,
@@ -62,6 +105,10 @@ class Page_Audit
             'user-agent'  => 'WPMCP-Performance-Analyzer/1.0',
         ]);
         $elapsed = (int) round((microtime(true) - $start) * 1000);
+
+        if (null !== $pin_callback) {
+            remove_filter('http_api_curl', $pin_callback);
+        }
 
         if (is_wp_error($response)) {
             return [
@@ -98,10 +145,14 @@ class Page_Audit
      * ::1, and IPv6 unique-local (fc00::/7), plus other reserved ranges, and
      * additionally normalizes IPv4-mapped IPv6 addresses.
      *
-     * This is an advisory pre-check, not the connection gate: the actual
-     * request in fetch() re-resolves the host independently via
-     * wp_safe_remote_get(), so a host that resolves differently at connect
-     * time is caught there, not here. Treat this as belt-and-suspenders.
+     * When curl is available, fetch() pins the exact IP validated here for
+     * the actual connection (see pick_pinned_ip() and CURLOPT_RESOLVE in
+     * fetch()), so this check IS the connection gate in that case: there is
+     * no separate re-resolution at connect time to disagree with it. Without
+     * curl, fetch() falls back to wp_safe_remote_get() re-resolving the host
+     * independently, so this check is advisory defense-in-depth only in that
+     * fallback path, and a host that resolves differently at connect time is
+     * caught there instead (or not at all, hence pinning being preferred).
      */
     private function resolves_to_private_ip(string $host): bool
     {
@@ -149,6 +200,48 @@ class Page_Audit
         }
 
         return inet_ntop(substr($packed, 12, 4)) ?: null;
+    }
+
+    /**
+     * Resolve $host to the single public IP that fetch() should pin the
+     * connection to, or null if it cannot be resolved to one. Reuses the
+     * same resolver seam and the same public/private classification as
+     * resolves_to_private_ip(), so a host is only ever pinned to an IP that
+     * has already passed that guard. Returns the literal IP unchanged when
+     * $host is itself an IP; otherwise returns the first resolved candidate
+     * that is public (not private/loopback/reserved, with IPv4-mapped IPv6
+     * normalized the same way as resolves_to_private_ip()).
+     */
+    private function pick_pinned_ip(string $host): ?string
+    {
+        $host = trim($host, '[]');
+
+        $candidates = filter_var($host, FILTER_VALIDATE_IP) ? [$host] : ($this->resolver)($host);
+        foreach ((array) $candidates as $ip) {
+            $public = filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE);
+            if (false === $public) {
+                continue;
+            }
+
+            $embedded = $this->mapped_ipv4($ip);
+            if (null !== $embedded && false === filter_var($embedded, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE)) {
+                continue;
+            }
+
+            return $ip;
+        }
+
+        return null;
+    }
+
+    /**
+     * Build a single CURLOPT_RESOLVE entry ("host:port:ip") that tells curl
+     * to connect to $ip for any request to $host on $port, bypassing curl's
+     * own DNS resolution for that host+port combination.
+     */
+    private function build_curl_resolve_entry(string $host, int $port, string $ip): string
+    {
+        return sprintf('%s:%d:%s', $host, $port, $ip);
     }
 
     /**
