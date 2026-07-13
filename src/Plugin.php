@@ -53,6 +53,7 @@ use WPMCP\Tools\I18n\I18n_Adapter;
 use WPMCP\Tools\I18n\List_Languages;
 use WPMCP\Tools\I18n\Get_Post_Translations;
 use WPMCP\Tools\I18n\Set_Post_Language;
+use WPMCP\Tools\I18n\Link_Post_Translations;
 use WPMCP\Tools\Linking\Find_Orphan_Posts;
 use WPMCP\Tools\Linking\Suggest_Internal_Links;
 use WPMCP\Tools\Linking\Get_Link_Map;
@@ -2875,6 +2876,7 @@ final class Plugin
         $list_languages         = new List_Languages();
         $get_post_translations  = new Get_Post_Translations();
         $set_post_language      = new Set_Post_Language();
+        $link_post_translations = new Link_Post_Translations();
 
         $registrar->register(new Ability(
             'wpmcp/list-languages',
@@ -2919,6 +2921,33 @@ final class Plugin
                 'required'   => [ 'post_id', 'language' ],
             ],
             [$set_post_language, 'handle'],
+            'edit_posts',
+            'translation',
+            'update'
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/link-post-translations',
+            'free',
+            'Link a set of posts as translations of one another, given a list of {language, post_id} pairs, via the active multilingual plugin (Polylang or WPML). The relationship spans multiple posts but only the primary (first) post is snapshotted, so rollback restores only the primary post, not the other linked posts',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'translations' => [
+                        'type'  => 'array',
+                        'items' => [
+                            'type'       => 'object',
+                            'properties' => [
+                                'language' => [ 'type' => 'string' ],
+                                'post_id'  => [ 'type' => 'integer' ],
+                            ],
+                            'required'   => [ 'language', 'post_id' ],
+                        ],
+                    ],
+                    'session_id'   => [ 'type' => 'string' ],
+                ],
+                'required'   => [ 'translations' ],
+            ],
+            [$link_post_translations, 'handle'],
             'edit_posts',
             'translation',
             'update'

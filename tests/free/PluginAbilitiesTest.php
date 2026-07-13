@@ -19,10 +19,10 @@ class PluginAbilitiesTest extends \WP_UnitTestCase
         }
     }
 
-    public function test_all_127_abilities_register_by_default(): void
+    public function test_all_128_abilities_register_by_default(): void
     {
         $registrar = Plugin::instance()->registrar();
-        $this->assertCount(127, $registrar->all());
+        $this->assertCount(128, $registrar->all());
     }
 
     public function test_read_ability_has_read_only_annotation(): void
@@ -266,6 +266,24 @@ class PluginAbilitiesTest extends \WP_UnitTestCase
         $this->assertSame('read', $abilities['wpmcp/get-seo-meta']->operation);
         $this->assertSame('seo', $abilities['wpmcp/update-seo-meta']->domain);
         $this->assertSame('update', $abilities['wpmcp/update-seo-meta']->operation);
+    }
+
+    public function test_i18n_abilities_are_tagged_translation_domain(): void
+    {
+        $abilities = $this->index(Plugin::instance()->registrar()->all());
+
+        if (! isset($abilities['wpmcp/list-languages'])) {
+            $this->markTestSkipped('No i18n plugin active in this test environment.');
+        }
+
+        $this->assertSame('translation', $abilities['wpmcp/list-languages']->domain);
+        $this->assertSame('read', $abilities['wpmcp/list-languages']->operation);
+        $this->assertSame('translation', $abilities['wpmcp/get-post-translations']->domain);
+        $this->assertSame('read', $abilities['wpmcp/get-post-translations']->operation);
+        $this->assertSame('translation', $abilities['wpmcp/set-post-language']->domain);
+        $this->assertSame('update', $abilities['wpmcp/set-post-language']->operation);
+        $this->assertSame('translation', $abilities['wpmcp/link-post-translations']->domain);
+        $this->assertSame('update', $abilities['wpmcp/link-post-translations']->operation);
     }
 
     public function test_connect_abilities_are_tagged_connect_domain(): void
