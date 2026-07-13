@@ -24,4 +24,38 @@ class ConvertHtmlToBlocksTest extends \WP_UnitTestCase
         $this->assertSame(2, $blocks[0]['attrs']['level']);
         $this->assertSame('core/paragraph', $blocks[1]['blockName']);
     }
+
+    public function test_converts_unordered_list_to_core_list(): void
+    {
+        $html = '<ul><li>a</li><li>b</li></ul>';
+
+        $out = (new Convert_Html_To_Blocks())->handle(['html' => $html]);
+
+        $blocks = array_values(array_filter(
+            parse_blocks($out['markup']),
+            static fn (array $block): bool => null !== $block['blockName']
+        ));
+
+        $this->assertCount(1, $blocks);
+        $this->assertSame('core/list', $blocks[0]['blockName']);
+        $this->assertArrayNotHasKey('ordered', $blocks[0]['attrs']);
+        $this->assertStringContainsString('<li>a</li>', $blocks[0]['innerHTML']);
+        $this->assertStringContainsString('<li>b</li>', $blocks[0]['innerHTML']);
+    }
+
+    public function test_converts_ordered_list_to_core_list_with_ordered_attr(): void
+    {
+        $html = '<ol><li>a</li><li>b</li></ol>';
+
+        $out = (new Convert_Html_To_Blocks())->handle(['html' => $html]);
+
+        $blocks = array_values(array_filter(
+            parse_blocks($out['markup']),
+            static fn (array $block): bool => null !== $block['blockName']
+        ));
+
+        $this->assertCount(1, $blocks);
+        $this->assertSame('core/list', $blocks[0]['blockName']);
+        $this->assertTrue($blocks[0]['attrs']['ordered']);
+    }
 }

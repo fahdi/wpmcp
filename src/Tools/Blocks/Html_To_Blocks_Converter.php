@@ -67,6 +67,8 @@ class Html_To_Blocks_Converter
 
         return match ($tag) {
             'p'          => self::leaf_block('core/paragraph', [], $outer_html),
+            'ul'         => self::leaf_block('core/list', [], $outer_html),
+            'ol'         => self::leaf_block('core/list', ['ordered' => true], $outer_html),
             default      => self::html_block($outer_html),
         };
     }
