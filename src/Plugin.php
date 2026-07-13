@@ -17,6 +17,7 @@ use WPMCP\Tools\Rest\Call_Rest;
 use WPMCP\Tools\Blocks\List_Block_Types;
 use WPMCP\Tools\Blocks\Get_Block_Type;
 use WPMCP\Tools\Blocks\Parse_Blocks;
+use WPMCP\Tools\Blocks\Serialize_Blocks;
 use WPMCP\MCP\Ability;
 use WPMCP\MCP\Registrar;
 use WPMCP\Tools\Get_Page;
@@ -1612,6 +1613,7 @@ final class Plugin
         $list_block_types = new List_Block_Types();
         $get_block_type   = new Get_Block_Type();
         $parse_blocks     = new Parse_Blocks();
+        $serialize_blocks = new Serialize_Blocks();
 
         $registrar->register(new Ability(
             'wpmcp/list-block-types',
@@ -1657,6 +1659,22 @@ final class Plugin
                 ],
             ],
             [$parse_blocks, 'handle'],
+            'edit_posts',
+            'blocks',
+            'read'
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/serialize-blocks',
+            'free',
+            'Serialize a block tree (as produced by parse-blocks, or any array shaped the same way) back into valid block markup via serialize_blocks(). A pure transform, not a database write: it never touches a post. To write the resulting markup to a post use the existing update-blocks tool',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'blocks' => [ 'type' => 'array' ],
+                ],
+                'required'   => [ 'blocks' ],
+            ],
+            [$serialize_blocks, 'handle'],
             'edit_posts',
             'blocks',
             'read'
