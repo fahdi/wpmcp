@@ -76,4 +76,67 @@ class Wp_Cli_Guard
 
         return (bool) apply_filters('wpmcp_allow_wp_cli_on_production', $default);
     }
+
+    /**
+     * Conservative, read-only-ish default allowlist. Each entry is a
+     * space-joined subcommand prefix that an argv (see is_allowed_subcommand())
+     * must start with, word-for-word, to be permitted. Filterable via
+     * wpmcp_wp_cli_allowlist but this default set is always what a fresh
+     * install starts from.
+     *
+     * @return string[]
+     */
+    public static function default_allowlist(): array
+    {
+        return [
+            'core version',
+            'plugin list',
+            'theme list',
+            'option get',
+            'cache flush',
+            'cron event list',
+            'user list',
+        ];
+    }
+
+    /** @return string[] The active allowlist: the default set, narrowable/extendable via filter. */
+    public static function allowlist(): array
+    {
+        return (array) apply_filters('wpmcp_wp_cli_allowlist', self::default_allowlist());
+    }
+
+    /**
+     * Whether $argv's leading words match one of the allowlist entries
+     * exactly (word-for-word), regardless of any trailing arguments/flags
+     * after that. Deny-by-default: an empty argv, or one that only partially
+     * matches an allowlist entry's word count (e.g. "cron event" against the
+     * "cron event list" entry), is rejected.
+     *
+     * @param string[] $argv Positional wp-cli arguments, NOT including the
+     *                       'wp' binary itself (e.g. ['plugin', 'list']).
+     */
+    public static function is_allowed_subcommand(array $argv): bool
+    {
+        if ([] === $argv) {
+            return false;
+        }
+
+        foreach (self::allowlist() as $entry) {
+            $entry_words = preg_split('/\s+/', trim((string) $entry));
+            if (! is_array($entry_words) || [] === $entry_words) {
+                continue;
+            }
+
+            if (count($argv) < count($entry_words)) {
+                continue;
+            }
+
+            $prefix = array_slice($argv, 0, count($entry_words));
+            if ($prefix === $entry_words) {
+                return true;
+            }
+        }
+
+        return false;
+    }
 }
