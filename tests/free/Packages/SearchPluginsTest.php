@@ -77,4 +77,27 @@ class SearchPluginsTest extends \WP_UnitTestCase
         $this->assertSame('6.0', $plugin['requires']);
         $this->assertSame('6.9', $plugin['tested']);
     }
+
+    public function test_search_surfaces_wp_error_cleanly(): void
+    {
+        add_filter('plugins_api', [$this, 'mock_plugins_api_error'], 10, 3);
+
+        $this->expectException(\RuntimeException::class);
+        $this->expectExceptionMessage('Plugin search failed: wordpress.org API unreachable');
+
+        try {
+            (new Search_Plugins())->handle(['query' => 'contact form']);
+        } finally {
+            remove_filter('plugins_api', [$this, 'mock_plugins_api_error'], 10);
+        }
+    }
+
+    public function mock_plugins_api_error($result, $action, $args)
+    {
+        if ('query_plugins' === $action) {
+            return new \WP_Error('plugins_api_failed', 'wordpress.org API unreachable');
+        }
+
+        return $result;
+    }
 }
