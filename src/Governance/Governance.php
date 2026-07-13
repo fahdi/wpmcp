@@ -2,6 +2,8 @@
 
 namespace WPMCP\Governance;
 
+use WPMCP\Identity\Identity_Context;
+use WPMCP\Identity\Identity_Store;
 use WPMCP\MCP\Ability;
 
 if (! defined('ABSPATH')) {
@@ -98,6 +100,57 @@ class Governance
     public static function reset_for_tests(): void
     {
         delete_option(self::OPTION);
+    }
+
+    /**
+     * Whether $a is usable under the currently active identity (see
+     * Identity_Context::current()). This is an additional narrowing layer on
+     * top of is_ability_enabled() and the caller's WordPress capability: it
+     * can only take away, never grant.
+     *
+     *  - No identity active (current() is null): unrestricted, returns true.
+     *  - Identity name not found in Identity_Store: default-deny, returns
+     *    false. An unknown identity is treated as ambiguous/untrusted, not
+     *    as "no restriction".
+     *  - Identity found: each non-empty scope array (domains, operations,
+     *    abilities) is an allowlist that $a must satisfy; empty arrays place
+     *    no restriction on that dimension. All non-empty dimensions must
+     *    match (AND), i.e. an identity restricted to domains=[content] AND
+     *    operations=[read] only allows abilities that are both in the
+     *    content domain and a read operation. mode='deny' inverts the match
+     *    (an ability matching the given scope is the one that gets denied,
+     *    everything else is allowed); mode='allow' (the default) is the
+     *    ordinary allowlist behavior described above.
+     */
+    public static function is_within_identity_scope(Ability $a): bool
+    {
+        $current = Identity_Context::current();
+        if (null === $current) {
+            return true;
+        }
+
+        $identity = Identity_Store::get($current);
+        if (null === $identity) {
+            return false;
+        }
+
+        $matches = self::identity_matches($identity, $a);
+
+        return 'deny' === $identity['mode'] ? ! $matches : $matches;
+    }
+
+    private static function identity_matches(array $identity, Ability $a): bool
+    {
+        if ($identity['domains'] && ! in_array($a->domain, $identity['domains'], true)) {
+            return false;
+        }
+        if ($identity['operations'] && ! in_array($a->operation, $identity['operations'], true)) {
+            return false;
+        }
+        if ($identity['abilities'] && ! in_array($a->name, $identity['abilities'], true)) {
+            return false;
+        }
+        return true;
     }
 
     private static function set_toggle(string $dimension, string $key, bool $enabled): void
