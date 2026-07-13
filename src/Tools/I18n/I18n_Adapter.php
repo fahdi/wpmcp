@@ -53,4 +53,74 @@ class I18n_Adapter
 
         return '';
     }
+
+    /**
+     * The site's configured languages in the neutral shape, from the active
+     * plugin. Each entry is ['code' => string, 'name' => string,
+     * 'is_default' => bool]. Returns an empty array when no i18n plugin is
+     * active.
+     */
+    public static function list_languages(): array
+    {
+        $active = self::active_plugin();
+
+        if ('polylang' === $active && function_exists('pll_languages_list')) {
+            // pll_languages_list(['fields' => '']) returns the full
+            // PLL_Language objects (slug, name, is_default), rather than the
+            // default slug-only list.
+            $languages = pll_languages_list(['fields' => '']);
+            return self::normalize_polylang_languages(is_array($languages) ? $languages : []);
+        }
+
+        if ('wpml' === $active && function_exists('icl_get_languages')) {
+            $languages = icl_get_languages('skip_missing=0');
+            $default   = function_exists('icl_get_default_language') ? (string) icl_get_default_language() : '';
+            return self::normalize_wpml_languages(is_array($languages) ? $languages : [], $default);
+        }
+
+        return [];
+    }
+
+    /**
+     * Normalize Polylang's PLL_Language objects to the neutral language shape.
+     * Pure: takes already-fetched objects so it is testable without booting
+     * Polylang. Each object is expected to expose ->slug, ->name, and
+     * ->is_default.
+     */
+    public static function normalize_polylang_languages(array $languages): array
+    {
+        $out = [];
+
+        foreach ($languages as $language) {
+            $out[] = [
+                'code'       => (string) ($language->slug ?? ''),
+                'name'       => (string) ($language->name ?? ''),
+                'is_default' => (bool) ($language->is_default ?? false),
+            ];
+        }
+
+        return $out;
+    }
+
+    /**
+     * Normalize WPML's icl_get_languages() array (keyed by code, with a
+     * native_name per entry) to the neutral language shape, marking the
+     * entry whose code matches $default_code as the default. Pure, so it is
+     * testable with fake data even though WPML itself is not installed here.
+     */
+    public static function normalize_wpml_languages(array $languages, string $default_code): array
+    {
+        $out = [];
+
+        foreach ($languages as $code => $language) {
+            $code = (string) ($language['code'] ?? $code);
+            $out[] = [
+                'code'       => $code,
+                'name'       => (string) ($language['native_name'] ?? ''),
+                'is_default' => $code === $default_code,
+            ];
+        }
+
+        return $out;
+    }
 }

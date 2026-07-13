@@ -30,4 +30,45 @@ class I18nAdapterTest extends \WP_UnitTestCase
 
         $this->assertSame('', I18n_Adapter::active_plugin());
     }
+
+    public function test_normalize_polylang_languages_maps_to_neutral_shape(): void
+    {
+        $en = new \stdClass();
+        $en->slug       = 'en';
+        $en->name       = 'English';
+        $en->is_default = true;
+
+        $fr = new \stdClass();
+        $fr->slug       = 'fr';
+        $fr->name       = 'Francais';
+        $fr->is_default = false;
+
+        $out = I18n_Adapter::normalize_polylang_languages([$en, $fr]);
+
+        $this->assertSame(
+            [
+                ['code' => 'en', 'name' => 'English', 'is_default' => true],
+                ['code' => 'fr', 'name' => 'Francais', 'is_default' => false],
+            ],
+            $out
+        );
+    }
+
+    public function test_normalize_wpml_languages_maps_to_neutral_shape(): void
+    {
+        $raw = [
+            'en' => ['code' => 'en', 'native_name' => 'English'],
+            'fr' => ['code' => 'fr', 'native_name' => 'Francais'],
+        ];
+
+        $out = I18n_Adapter::normalize_wpml_languages($raw, 'en');
+
+        $this->assertSame(
+            [
+                ['code' => 'en', 'name' => 'English', 'is_default' => true],
+                ['code' => 'fr', 'name' => 'Francais', 'is_default' => false],
+            ],
+            $out
+        );
+    }
 }
