@@ -24,6 +24,7 @@ use WPMCP\Tools\Structure\List_Sidebars;
 use WPMCP\Tools\Structure\List_Sidebar_Widgets;
 use WPMCP\Tools\Export\Export_Content;
 use WPMCP\Tools\Export\List_Exports;
+use WPMCP\Tools\Export\Import_Content;
 use WPMCP\MCP\Ability;
 use WPMCP\MCP\Registrar;
 use WPMCP\Tools\Get_Page;
@@ -1779,6 +1780,7 @@ final class Plugin
     {
         $export_content = new Export_Content();
         $list_exports    = new List_Exports();
+        $import_content  = new Import_Content();
 
         $registrar->register(new Ability(
             'wpmcp/export-content',
@@ -1811,6 +1813,23 @@ final class Plugin
             'manage_options',
             'export',
             'read'
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/import-content',
+            'free',
+            'Import a WordPress eXtended RSS (WXR) file, creating posts via wp_insert_post() (title, content, status, post_type, postmeta). Disabled by default (site must opt in via the wpmcp_enable_import filter) and always requires confirm:true. Content creation at scale has no single object_type/object_id to snapshot, so this honestly reports recoverable:false; every created post id is returned in created_post_ids so a caller can follow up with delete-post for each one. Uses a lightweight built-in WXR parser, not the WordPress Importer plugin',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'file'    => [ 'type' => 'string' ],
+                    'confirm' => [ 'type' => 'boolean' ],
+                ],
+                'required'   => [ 'file' ],
+            ],
+            [$import_content, 'handle'],
+            'manage_options',
+            'export',
+            'create'
         ));
     }
 
