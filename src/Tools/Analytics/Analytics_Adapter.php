@@ -29,6 +29,19 @@ if (! defined('ABSPATH')) {
  * documents network_info()/list_sites()/site_details() and how I18n_Adapter
  * documents its WPML paths as untested against a real install.
  *
+ * Concretely: fetch_ga4_report() and fetch_gsc_data() are the two methods
+ * that make a real outbound wp_remote_get() call (routed through Google Site
+ * Kit's own authenticated REST proxy, since Site Kit already holds the
+ * Google OAuth credentials this plugin does not want to manage itself).
+ * Neither is exercised by any test in this codebase: doing so would require
+ * either a live Site Kit connection (not available here) or mocking
+ * pre_http_request with an invented "Google response", which would risk
+ * being mistaken for a verified-real response shape. Only the pure
+ * normalize_ga4_summary(), normalize_ga4_top_pages(), normalize_gsc_summary(),
+ * and normalize_gsc_queries() methods that consume this raw payload are
+ * unit-tested, against hand-built fixtures that approximate (but are not
+ * verified against) the real Google API response shapes.
+ *
  * To keep active_provider()'s Site Kit detection unit-testable without
  * installing the real plugin or permanently declaring a throwaway
  * class/constant (which, once defined, cannot be undefined and so could leak
@@ -333,5 +346,197 @@ class Analytics_Adapter
         }
 
         return $out;
+    }
+
+    /**
+     * Sessions/users/pageviews summary for a date range. Returns a WP_Error
+     * when no provider is active. Otherwise delegates to fetch_ga4_report()
+     * (production-only, see its docblock) and normalize_ga4_summary().
+     *
+     * @return array|\WP_Error
+     */
+    public static function analytics_summary(string $start_date, string $end_date)
+    {
+        if ('' === self::active_provider()) {
+            return self::not_connected_error();
+        }
+
+        $raw = self::fetch_ga4_report($start_date, $end_date, []);
+
+        return self::normalize_ga4_summary($raw, $start_date, $end_date);
+    }
+
+    /**
+     * Top pages by pageviews for a date range, capped at MAX_LIMIT. Returns
+     * a WP_Error when no provider is active. Otherwise delegates to
+     * fetch_ga4_report() (production-only) and normalize_ga4_top_pages().
+     *
+     * @return array|\WP_Error
+     */
+    public static function top_pages(string $start_date, string $end_date, int $limit)
+    {
+        if ('' === self::active_provider()) {
+            return self::not_connected_error();
+        }
+
+        $limit = self::clamp_limit($limit);
+        $raw   = self::fetch_ga4_report($start_date, $end_date, ['dimensions' => ['pagePath'], 'limit' => $limit]);
+
+        return self::normalize_ga4_top_pages($raw);
+    }
+
+    /**
+     * Clicks/impressions/ctr/position summary for a date range. Returns a
+     * WP_Error when no provider is active. Otherwise delegates to
+     * fetch_gsc_data() (production-only, see its docblock) and
+     * normalize_gsc_summary().
+     *
+     * @return array|\WP_Error
+     */
+    public static function search_console_summary(string $start_date, string $end_date)
+    {
+        if ('' === self::active_provider()) {
+            return self::not_connected_error();
+        }
+
+        $raw = self::fetch_gsc_data($start_date, $end_date, []);
+
+        return self::normalize_gsc_summary($raw, $start_date, $end_date);
+    }
+
+    /**
+     * Top search queries by clicks for a date range, capped at MAX_LIMIT.
+     * Returns a WP_Error when no provider is active. Otherwise delegates to
+     * fetch_gsc_data() (production-only) and normalize_gsc_queries().
+     *
+     * @return array|\WP_Error
+     */
+    public static function search_console_queries(string $start_date, string $end_date, int $limit)
+    {
+        if ('' === self::active_provider()) {
+            return self::not_connected_error();
+        }
+
+        $limit = self::clamp_limit($limit);
+        $raw   = self::fetch_gsc_data($start_date, $end_date, ['dimensions' => ['query'], 'limit' => $limit]);
+
+        return self::normalize_gsc_queries($raw);
+    }
+
+    /**
+     * The WP_Error returned by every data method when active_provider() is
+     * ''. Centralized so the code and message stay in sync across all four
+     * data methods.
+     */
+    private static function not_connected_error(): \WP_Error
+    {
+        return new \WP_Error(
+            'wpmcp_analytics_not_connected',
+            'Analytics is not connected. Activate and connect Google Site Kit, or configure analytics credentials.'
+        );
+    }
+
+    /**
+     * Fetch a raw GA4 Data API runReport-shaped payload for the given date
+     * range and options (dimensions, limit). This is the one method in this
+     * adapter that would make a real outbound call in production: when Site
+     * Kit is active, via its authenticated REST proxy (roughly
+     * rest_url('google-site-kit/v1/modules/analytics-4/data/report'), which
+     * carries Site Kit's own stored Google OAuth credentials so this plugin
+     * never has to handle them directly); when only 'configured' credentials
+     * are present, there is no token available for a direct Google API call
+     * without also implementing an OAuth flow, which is out of scope here.
+     *
+     * PRODUCTION-ONLY / UNTESTED: this unit-test harness has neither Site Kit
+     * installed nor real Google credentials nor network access, so this
+     * method cannot be exercised end to end in CI, matching how
+     * Multisite_Adapter documents network_info()/list_sites()/site_details()
+     * as production-only. Only the pure normalize_ga4_summary()/
+     * normalize_ga4_top_pages() methods that consume this method's output
+     * are unit-tested, against hand-built fixtures.
+     *
+     * Every call is guarded so a missing Site Kit install can never fatal:
+     * function_exists()/class_exists() checks gate any Site-Kit-specific
+     * call, and wp_remote_get()/wp_remote_post() failures are treated as an
+     * empty report rather than thrown, so a caller always gets back a
+     * "zeroed" summary rather than an uncaught exception when the live
+     * round-trip cannot complete.
+     */
+    private static function fetch_ga4_report(string $start_date, string $end_date, array $options): array
+    {
+        if ('site-kit' !== self::active_provider() || ! function_exists('rest_url') || ! function_exists('wp_remote_get')) {
+            return [];
+        }
+
+        $args = [
+            'startDate' => $start_date,
+            'endDate'   => $end_date,
+        ];
+        if (! empty($options['dimensions'])) {
+            $args['dimensions'] = $options['dimensions'];
+        }
+        if (! empty($options['limit'])) {
+            $args['limit'] = $options['limit'];
+        }
+
+        $response = wp_remote_get(
+            add_query_arg(
+                $args,
+                rest_url('google-site-kit/v1/modules/analytics-4/data/report')
+            )
+        );
+
+        if (is_wp_error($response) || ! function_exists('wp_remote_retrieve_body')) {
+            return [];
+        }
+
+        $body = json_decode(wp_remote_retrieve_body($response), true);
+
+        return is_array($body) ? $body : [];
+    }
+
+    /**
+     * Fetch a raw Search Console searchanalytics.query-shaped payload for
+     * the given date range and options (dimensions, limit). Same production
+     * -only status and honesty caveats as fetch_ga4_report(): this cannot be
+     * exercised end to end in this harness (no Site Kit, no credentials, no
+     * network access), so only the pure normalize_gsc_summary()/
+     * normalize_gsc_queries() methods that consume its output are tested.
+     *
+     * Routed through Site Kit's Search Console module REST proxy for the
+     * same reason as fetch_ga4_report(): Site Kit already holds the
+     * authenticated Google credentials, so this plugin never has to.
+     */
+    private static function fetch_gsc_data(string $start_date, string $end_date, array $options): array
+    {
+        if ('site-kit' !== self::active_provider() || ! function_exists('rest_url') || ! function_exists('wp_remote_get')) {
+            return [];
+        }
+
+        $args = [
+            'startDate' => $start_date,
+            'endDate'   => $end_date,
+        ];
+        if (! empty($options['dimensions'])) {
+            $args['dimensions'] = $options['dimensions'];
+        }
+        if (! empty($options['limit'])) {
+            $args['limit'] = $options['limit'];
+        }
+
+        $response = wp_remote_get(
+            add_query_arg(
+                $args,
+                rest_url('google-site-kit/v1/modules/search-console/data/searchanalytics')
+            )
+        );
+
+        if (is_wp_error($response) || ! function_exists('wp_remote_retrieve_body')) {
+            return [];
+        }
+
+        $body = json_decode(wp_remote_retrieve_body($response), true);
+
+        return is_array($body) ? $body : [];
     }
 }

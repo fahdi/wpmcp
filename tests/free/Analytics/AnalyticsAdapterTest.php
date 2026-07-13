@@ -344,4 +344,36 @@ class AnalyticsAdapterTest extends \WP_UnitTestCase
     {
         $this->assertSame([], Analytics_Adapter::normalize_gsc_queries([]));
     }
+
+    public function test_analytics_summary_returns_not_connected_error_when_no_provider_is_active(): void
+    {
+        $result = Analytics_Adapter::analytics_summary('2026-01-01', '2026-01-28');
+
+        $this->assertInstanceOf(\WP_Error::class, $result);
+        $this->assertSame('wpmcp_analytics_not_connected', $result->get_error_code());
+    }
+
+    public function test_top_pages_returns_not_connected_error_when_no_provider_is_active(): void
+    {
+        $result = Analytics_Adapter::top_pages('2026-01-01', '2026-01-28', 10);
+
+        $this->assertInstanceOf(\WP_Error::class, $result);
+        $this->assertSame('wpmcp_analytics_not_connected', $result->get_error_code());
+    }
+
+    public function test_search_console_summary_returns_not_connected_error_when_no_provider_is_active(): void
+    {
+        $result = Analytics_Adapter::search_console_summary('2026-01-01', '2026-01-28');
+
+        $this->assertInstanceOf(\WP_Error::class, $result);
+        $this->assertSame('wpmcp_analytics_not_connected', $result->get_error_code());
+    }
+
+    public function test_search_console_queries_returns_not_connected_error_when_no_provider_is_active(): void
+    {
+        $result = Analytics_Adapter::search_console_queries('2026-01-01', '2026-01-28', 10);
+
+        $this->assertInstanceOf(\WP_Error::class, $result);
+        $this->assertSame('wpmcp_analytics_not_connected', $result->get_error_code());
+    }
 }
