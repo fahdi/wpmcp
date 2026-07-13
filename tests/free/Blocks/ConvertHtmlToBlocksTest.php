@@ -92,4 +92,23 @@ class ConvertHtmlToBlocksTest extends \WP_UnitTestCase
         $this->assertStringContainsString('unusual content', $blocks[0]['innerHTML']);
         $this->assertStringContainsString('custom-tag', $blocks[0]['innerHTML']);
     }
+
+    public function test_round_trip_through_parse_blocks_is_stable(): void
+    {
+        $html = '<h2>Title</h2><p>Hello</p><ul><li>a</li><li>b</li></ul>'
+            . '<img src="https://example.com/photo.jpg" alt="A photo">'
+            . '<custom-tag>unusual</custom-tag>';
+
+        $markup = (new Convert_Html_To_Blocks())->handle(['html' => $html])['markup'];
+
+        $first_parse  = parse_blocks($markup);
+        $reserialized = serialize_blocks($first_parse);
+        $second_parse = parse_blocks($reserialized);
+
+        $this->assertSame($markup, $reserialized);
+        $this->assertSame(
+            array_column($first_parse, 'blockName'),
+            array_column($second_parse, 'blockName')
+        );
+    }
 }
