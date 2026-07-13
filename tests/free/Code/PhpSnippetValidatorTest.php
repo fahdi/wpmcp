@@ -25,4 +25,36 @@ class PhpSnippetValidatorTest extends \WP_UnitTestCase
         $this->assertArrayHasKey('line', $result['errors'][0]);
         $this->assertSame(1, $result['errors'][0]['line']);
     }
+
+    public function test_eval_of_request_input_is_syntax_valid_but_unsafe(): void
+    {
+        $result = Php_Snippet_Validator::validate("<?php eval(\$_POST['x']);");
+
+        $this->assertTrue($result['syntax_valid']);
+        $this->assertFalse($result['safe']);
+
+        $messages = array_column($result['warnings'], 'message');
+        $this->assertTrue(
+            (bool) preg_grep('/eval/i', $messages),
+            'Expected an eval-related warning, got: ' . implode(' | ', $messages)
+        );
+        $this->assertTrue(
+            (bool) preg_grep('/request/i', $messages),
+            'Expected a request-driven-execution warning, got: ' . implode(' | ', $messages)
+        );
+    }
+
+    public function test_shell_exec_is_flagged(): void
+    {
+        $result = Php_Snippet_Validator::validate("<?php \$o = shell_exec('ls');");
+
+        $this->assertTrue($result['syntax_valid']);
+        $this->assertFalse($result['safe']);
+
+        $messages = array_column($result['warnings'], 'message');
+        $this->assertTrue(
+            (bool) preg_grep('/shell_exec/i', $messages),
+            'Expected a shell_exec warning, got: ' . implode(' | ', $messages)
+        );
+    }
 }
