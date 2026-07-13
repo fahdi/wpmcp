@@ -14,6 +14,9 @@ use WPMCP\Tools\Update_Blocks;
 use WPMCP\Tools\List_Operations;
 use WPMCP\Tools\Rollback_Operation;
 use WPMCP\Tools\Rollback_Session;
+use WPMCP\Tools\ACF\List_Field_Groups;
+use WPMCP\Tools\ACF\Get_Fields;
+use WPMCP\Tools\ACF\Update_Fields;
 use WPMCP\Tools\Content\List_Post_Types;
 use WPMCP\Tools\Content\List_Taxonomies;
 use WPMCP\Tools\Content\Create_Post;
@@ -1297,6 +1300,7 @@ final class Plugin
         $this->register_woocommerce_abilities($registrar);
         $this->register_menu_abilities($registrar);
         $this->register_elementor_abilities($registrar);
+        $this->register_acf_abilities($registrar);
     }
 
     /**
@@ -1882,6 +1886,79 @@ final class Plugin
             'edit_theme_options',
             'menus',
             'delete'
+        ));
+    }
+
+    /**
+     * Register the ACF (Advanced Custom Fields) tools as free-tier abilities.
+     *
+     * Registered conditionally, gated on function_exists('acf_get_field_groups'),
+     * unlike WooCommerce and Elementor's tool groups (which register
+     * unconditionally and degrade at call time): ACF has no free/pro split of
+     * its own to key off, so absence of the plugin is the only signal, and
+     * skipping registration entirely keeps these abilities out of the
+     * catalog on sites that don't run ACF at all.
+     *
+     * update-fields is disabled by default via the wpmcp_enable_acf_write
+     * filter (checked inside Update_Fields::handle()); the ability itself is
+     * still registered so a caller can discover it and see why it refuses.
+     */
+    private function register_acf_abilities(Registrar $registrar): void
+    {
+        if (! function_exists('acf_get_field_groups')) {
+            return;
+        }
+
+        $list_field_groups = new List_Field_Groups();
+        $get_fields        = new Get_Fields();
+        $update_fields     = new Update_Fields();
+
+        $registrar->register(new Ability(
+            'wpmcp/list-field-groups',
+            'free',
+            'List registered ACF (Advanced Custom Fields) field groups: key, title, a flattened summary of their location rules, and whether each is active',
+            [
+                'type'       => 'object',
+                'properties' => [],
+            ],
+            [$list_field_groups, 'handle'],
+            'edit_posts',
+            'acf',
+            'read'
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/get-fields',
+            'free',
+            'Read a post\'s ACF field values, keyed by field name, via get_fields()',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'post_id' => [ 'type' => 'integer' ],
+                ],
+                'required'   => [ 'post_id' ],
+            ],
+            [$get_fields, 'handle'],
+            'edit_posts',
+            'acf',
+            'read'
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/update-fields',
+            'free',
+            'Set one or more ACF field values on a post via update_field(). A field value is ordinary postmeta, so this is snapshotted via object_type post and rollback-operation restores the prior values exactly. Disabled by default (site must opt in via the wpmcp_enable_acf_write filter)',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'post_id'    => [ 'type' => 'integer' ],
+                    'fields'     => [ 'type' => 'object' ],
+                    'session_id' => [ 'type' => 'string' ],
+                ],
+                'required'   => [ 'post_id', 'fields' ],
+            ],
+            [$update_fields, 'handle'],
+            'edit_posts',
+            'acf',
+            'update'
         ));
     }
 }
