@@ -151,6 +151,7 @@ use WPMCP\Tools\Elementor\Remove_Element;
 use WPMCP\Tools\Elementor\Move_Element;
 use WPMCP\Tools\Elementor\Generate_Widget;
 use WPMCP\Tools\Builders\Detect_Builder;
+use WPMCP\Tools\Builders\Get_Builder_Content;
 use WPMCP\Tools\WooCommerce\List_Products;
 use WPMCP\Tools\WooCommerce\Get_Product;
 use WPMCP\Tools\WooCommerce\Create_Product;
@@ -3709,6 +3710,25 @@ final class Plugin
                 'required'   => [ 'post_id' ],
             ],
             [$detect_builder, 'handle'],
+            'edit_posts',
+            'builders',
+            'read'
+        ));
+
+        $get_builder_content = new Get_Builder_Content();
+
+        $registrar->register(new Ability(
+            'wpmcp/get-builder-content',
+            'pro',
+            'Return the raw builder structure for a post: for Bricks, the decoded _bricks_page_content_2 postmeta JSON; for Divi, the post_content shortcode string plus the use-builder flag. Returns a WP_Error for posts detected as elementor, gutenberg, or classic. Read-only',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'post_id' => [ 'type' => 'integer' ],
+                ],
+                'required'   => [ 'post_id' ],
+            ],
+            [$get_builder_content, 'handle'],
             'edit_posts',
             'builders',
             'read'

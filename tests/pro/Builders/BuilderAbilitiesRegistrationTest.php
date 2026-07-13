@@ -5,6 +5,7 @@ namespace WPMCP\Tests\Pro\Builders;
 use WPMCP\MCP\{Ability, Registrar};
 use WPMCP\Pro\Gate;
 use WPMCP\Tools\Builders\Detect_Builder;
+use WPMCP\Tools\Builders\Get_Builder_Content;
 
 /**
  * Verifies the detect-builder ability is declared as pro-tier and that
@@ -61,5 +62,44 @@ class BuilderAbilitiesRegistrationTest extends \WP_UnitTestCase
 
         $names = array_map(fn($a) => $a->name, $registrar->all());
         $this->assertContains('wpmcp/detect-builder', $names);
+    }
+
+    private function make_get_builder_content_ability(): Ability
+    {
+        return new Ability(
+            'wpmcp/get-builder-content',
+            'pro',
+            'Return the raw builder structure for a post.',
+            [
+                'type'       => 'object',
+                'properties' => ['post_id' => ['type' => 'integer']],
+                'required'   => ['post_id'],
+            ],
+            [new Get_Builder_Content(), 'handle'],
+            'edit_posts',
+            'builders',
+            'read'
+        );
+    }
+
+    public function test_registrar_skips_get_builder_content_when_free(): void
+    {
+        Gate::set_pro_for_tests(false);
+
+        $registrar = new Registrar();
+        $registrar->register($this->make_get_builder_content_ability());
+
+        $this->assertCount(0, $registrar->all());
+    }
+
+    public function test_registrar_keeps_get_builder_content_when_pro(): void
+    {
+        Gate::set_pro_for_tests(true);
+
+        $registrar = new Registrar();
+        $registrar->register($this->make_get_builder_content_ability());
+
+        $names = array_map(fn($a) => $a->name, $registrar->all());
+        $this->assertContains('wpmcp/get-builder-content', $names);
     }
 }
