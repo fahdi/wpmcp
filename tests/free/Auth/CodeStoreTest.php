@@ -83,6 +83,79 @@ class CodeStoreTest extends \WP_UnitTestCase
         $this->assertNull(Code_Store::consume($code));
     }
 
+    /**
+     * consume() must be redeemable at most once even across many repeated
+     * attempts against the same code (issue #43 C3). PHPUnit runs
+     * single-threaded, so this cannot reproduce the original TOCTOU
+     * interleave (two requests both reading the option before either
+     * writes) deterministically -- that requires genuine concurrent
+     * requests. What this test proves instead: hammering consume() with
+     * the same code repeatedly yields the bound record exactly once and
+     * null every other time, i.e. the claim is idempotent-safe under
+     * repetition, not just under a single sequential replay. See
+     * Code_Store::consume()'s doc comment for why the underlying $wpdb
+     * compare-and-swap closes the race a plain get_option/update_option
+     * pair could not.
+     */
+    public function test_consume_is_redeemable_at_most_once_under_repeated_attempts(): void
+    {
+        $code = $this->issue();
+
+        $results = [];
+        for ($i = 0; $i < 10; $i++) {
+            $results[] = Code_Store::consume($code);
+        }
+
+        $successes = array_filter($results, static fn($r) => null !== $r);
+        $this->assertCount(1, $successes, 'Exactly one consume() call may claim the code.');
+    }
+
+    /**
+     * White-box proof that consume() detects and rejects a stale write
+     * attempt, which is the exact TOCTOU the original load -> unset -> save
+     * implementation was vulnerable to (issue #43 C3). The `option_{name}`
+     * filter fires on every get_option() call, so it is used here to inject
+     * a "concurrent" mutation of the real stored option in between
+     * consume()'s own read and its compare-and-swap write attempt --
+     * simulating a second request that raced ahead and already consumed
+     * the same code. The original implementation would have blindly
+     * overwritten that concurrent change (both callers would have "won").
+     * The fixed implementation's compare-and-swap must detect the row no
+     * longer matches what it read and refuse to claim the code, instead of
+     * silently overwriting the concurrent consumer's change.
+     */
+    public function test_consume_detects_and_rejects_a_stale_concurrent_write(): void
+    {
+        $code = $this->issue();
+        $key  = array_key_first(get_option(Code_Store::OPTION));
+
+        $armed = false;
+        $filter = function ($value) use (&$armed, $key) {
+            if (! $armed) {
+                $armed = true;
+                // Simulate a concurrent request that already consumed this
+                // exact code between our read and our write attempt.
+                $concurrent = $value;
+                unset($concurrent[ $key ]);
+                update_option(Code_Store::OPTION, $concurrent);
+            }
+            return $value;
+        };
+        add_filter('option_' . Code_Store::OPTION, $filter);
+
+        $result = Code_Store::consume($code);
+
+        remove_filter('option_' . Code_Store::OPTION, $filter);
+
+        // The concurrent writer already removed the record, so this
+        // caller's stale read must not resurrect it: it must lose the race
+        // cleanly (null), never returning the record a second time.
+        $this->assertNull($result);
+
+        $stored = get_option(Code_Store::OPTION);
+        $this->assertArrayNotHasKey($key, $stored, 'The code must remain consumed, not resurrected by a stale overwrite.');
+    }
+
     public function test_consume_rejects_an_unknown_code(): void
     {
         $this->assertNull(Code_Store::consume('never-issued'));
