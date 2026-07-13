@@ -32,6 +32,10 @@ if (! defined('ABSPATH')) {
  * was called with and returns a canned result, without ever spawning a
  * process. This is the seam the guard-behavior tests in
  * tests/free/Cli/RunWpCliTest.php exercise.
+ *
+ * Full architecture writeup, including exactly what is CI-tested versus
+ * production-only (the real proc_open round-trip) and flags left for the
+ * adversarial security review: .superpowers/sdd/issue-44-report.md.
  */
 class Run_Wp_Cli
 {
