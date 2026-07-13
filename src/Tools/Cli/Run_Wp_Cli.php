@@ -19,7 +19,10 @@ if (! defined('ABSPATH')) {
  *  2. Wp_Cli_Guard::is_allowed_on_environment() - refuses production
  *  3. Wp_Cli_Guard::is_allowed_subcommand()  - allowlist, deny by default
  *  4. Wp_Cli_Guard::validate_args()          - shell metacharacter/NUL check
- *  5. Wp_Cli_Guard::resolve_binary()         - locates the wp binary
+ *  5. Wp_Cli_Guard::validate_flags()         - safe-flag allowlist, deny by
+ *                                              default on every "-"-prefixed
+ *                                              token anywhere in the argv
+ *  6. Wp_Cli_Guard::resolve_binary()         - locates the wp binary
  *
  * Every attempt, allowed or denied, is recorded via Governance_Audit_Log,
  * same as the ordinary permission-check audit trail (Registrar::record_audit):
@@ -116,6 +119,11 @@ class Run_Wp_Cli
         $args_valid = Wp_Cli_Guard::validate_args($subcommand_argv);
         if (is_wp_error($args_valid)) {
             throw new \RuntimeException($args_valid->get_error_message());
+        }
+
+        $flags_valid = Wp_Cli_Guard::validate_flags($subcommand_argv);
+        if (is_wp_error($flags_valid)) {
+            throw new \RuntimeException($flags_valid->get_error_message());
         }
 
         $binary = Wp_Cli_Guard::resolve_binary();

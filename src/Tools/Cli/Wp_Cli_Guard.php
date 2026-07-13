@@ -84,6 +84,15 @@ class Wp_Cli_Guard
      * wpmcp_wp_cli_allowlist but this default set is always what a fresh
      * install starts from.
      *
+     * Issue #44 security review, M1: `option get` and `user list` are
+     * deliberately NOT in this default set. `option get` accepts any option
+     * name, so it can read arbitrary secrets (API keys, SMTP credentials,
+     * payment provider keys, ...) stored in wp_options; `user list` can
+     * enumerate user data. Both are genuine confidentiality risks even
+     * though the tool is already manage_options-gated, so an operator who
+     * accepts that risk must deliberately re-add either via the
+     * wpmcp_wp_cli_allowlist filter rather than getting them for free.
+     *
      * @return string[]
      */
     public static function default_allowlist(): array
@@ -92,10 +101,8 @@ class Wp_Cli_Guard
             'core version',
             'plugin list',
             'theme list',
-            'option get',
             'cache flush',
             'cron event list',
-            'user list',
         ];
     }
 
@@ -174,6 +181,77 @@ class Wp_Cli_Guard
                         'Argument contains a disallowed character and was rejected.'
                     );
                 }
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Narrow, conservative default set of flag NAMES (without any leading
+     * dashes) permitted anywhere in an argv, regardless of which allowlisted
+     * subcommand they follow. Deliberately tiny: only harmless read/format
+     * flags. Filterable via wpmcp_wp_cli_flag_allowlist, but every wp-cli
+     * GLOBAL flag capable of altering execution context or running code
+     * (--exec, --require, --ssh, --http, --path, --url, --user, --prompt,
+     * --debug, --eval, and any unrecognized flag) is denied by default and
+     * must be deliberately opted into via that filter.
+     *
+     * @return string[]
+     */
+    public static function default_flag_allowlist(): array
+    {
+        return ['--format', '--fields', '--field'];
+    }
+
+    /** @return string[] The active safe-flag allowlist: default set, narrowable/extendable via filter. */
+    public static function flag_allowlist(): array
+    {
+        return (array) apply_filters('wpmcp_wp_cli_flag_allowlist', self::default_flag_allowlist());
+    }
+
+    /**
+     * Validate every element of $argv against the safe-flag allowlist:
+     * deny-by-default on flags. Any token beginning with "-" (short or long,
+     * "=value" form or not) must have its flag NAME (the part before any
+     * "=") present in flag_allowlist(), or the whole command is rejected.
+     * This closes the allowlist-bypass-to-RCE class described in issue #44's
+     * security review (C1): is_allowed_subcommand() only matches the
+     * LEADING positional words, so this method validates the ENTIRE token
+     * stream instead, including every trailing flag a caller could append
+     * after an allowlisted subcommand prefix.
+     *
+     * Also rejects any token containing a literal space: argv elements are
+     * already discrete array entries never passed through a shell, but a
+     * space inside one element would imply an attempt to smuggle what looks
+     * like a second token past this check within a single element.
+     *
+     * @return true|\WP_Error
+     */
+    public static function validate_flags(array $argv)
+    {
+        $allowed = self::flag_allowlist();
+
+        foreach ($argv as $token) {
+            $token = (string) $token;
+
+            if (false !== strpos($token, ' ')) {
+                return new \WP_Error(
+                    'wp_cli_unsafe_argument',
+                    'Argument contains a space and was rejected.'
+                );
+            }
+
+            if ('' === $token || '-' !== $token[0]) {
+                continue;
+            }
+
+            $flag_name = strtok($token, '=');
+            if (! in_array($flag_name, $allowed, true)) {
+                return new \WP_Error(
+                    'wp_cli_disallowed_flag',
+                    "The flag \"{$flag_name}\" is not on the safe-flag allowlist and was rejected."
+                );
             }
         }
 

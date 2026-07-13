@@ -116,10 +116,10 @@ class RunWpCliTest extends \WP_UnitTestCase
         $calls = [];
         $tool  = new Run_Wp_Cli($this->recording_executor($calls));
 
-        $result = $tool->handle(['command' => 'plugin list --status=active']);
+        $result = $tool->handle(['command' => 'plugin list --format=json']);
 
         $this->assertCount(1, $calls);
-        $this->assertSame([$bin, 'plugin', 'list', '--status=active'], $calls[0]['argv']);
+        $this->assertSame([$bin, 'plugin', 'list', '--format=json'], $calls[0]['argv']);
         $this->assertSame('ok', $result['stdout']);
         $this->assertSame(0, $result['exit_code']);
     }
@@ -161,6 +161,43 @@ class RunWpCliTest extends \WP_UnitTestCase
         } finally {
             $this->assertCount(0, $calls);
         }
+    }
+
+    /**
+     * @dataProvider global_flag_rce_payloads
+     *
+     * Issue #44 security review, C1: end-to-end confirmation (through the
+     * full Run_Wp_Cli::handle() guard chain, not just Wp_Cli_Guard in
+     * isolation) that an allowlisted subcommand prefix plus a dangerous
+     * wp-cli GLOBAL flag never reaches the executor. Which specific guard
+     * fires first (the metacharacter check or the safe-flag allowlist) can
+     * differ per payload since both run in sequence; either is an
+     * acceptable rejection, what matters is that the executor is never
+     * called.
+     */
+    public function test_global_flag_rce_payload_is_rejected_without_calling_executor(string $command): void
+    {
+        add_filter('wpmcp_allow_wp_cli', '__return_true');
+        $this->fake_binary();
+
+        $calls = [];
+        $tool  = new Run_Wp_Cli($this->recording_executor($calls));
+
+        $this->expectException(\RuntimeException::class);
+        try {
+            $tool->handle(['command' => $command]);
+        } finally {
+            $this->assertCount(0, $calls, 'The executor must never be invoked for a disallowed-flag payload.');
+        }
+    }
+
+    public function global_flag_rce_payloads(): array
+    {
+        return [
+            'require (file inclusion)' => ['core version --require=/tmp/evil.php'],
+            'exec (inline PHP)'        => ['core version --exec=include("/tmp/x")'],
+            'ssh (remote host pivot)'  => ['plugin list --ssh=attacker@evil.tld'],
+        ];
     }
 
     public function test_missing_binary_returns_error_without_calling_executor(): void
@@ -245,8 +282,15 @@ class RunWpCliTest extends \WP_UnitTestCase
         // The audit log must never contain secrets; a wp-cli command could
         // include e.g. `option get some_api_key` or similar sensitive
         // arguments, so only the ability name/identity/outcome are logged,
-        // never the actual command/argv.
+        // never the actual command/argv. `option get` is no longer on the
+        // default allowlist (issue #44 security review, M1), so it is
+        // filtered in here specifically to keep exercising the scenario the
+        // audit log must protect against even when an operator opts into it.
         add_filter('wpmcp_allow_wp_cli', '__return_true');
+        add_filter('wpmcp_wp_cli_allowlist', function (array $allowlist): array {
+            $allowlist[] = 'option get';
+            return $allowlist;
+        });
         $this->fake_binary();
 
         $calls = [];
