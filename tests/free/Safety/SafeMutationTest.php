@@ -51,4 +51,34 @@ class SafeMutationTest extends \WP_UnitTestCase {
         Rollback_Service::apply_snapshot( $row['snapshot'] );
         $this->assertSame( 'Original Name', get_option( 'blogname' ) );
     }
+
+    /**
+     * A caller that knows up front it needs to do irreversible-resource
+     * cleanup (e.g. Delete_Media backing up files before an unlink) needs
+     * the operation_id BEFORE the mutation runs, and needs whatever it
+     * computes (a file manifest) folded into the snapshot that gets saved.
+     * Both hooks are additive: omitting them must behave exactly as before.
+     */
+    public function test_run_honors_precomputed_operation_id_and_extra_snapshot_data(): void {
+        $id  = self::factory()->post->create( [ 'post_content' => 'OLD' ] );
+        $ctx = $this->ctx( $id );
+        $ctx['operation_id']        = 'precomputed-op-id';
+        $ctx['extra_snapshot_data'] = [ 'files' => [ 'manifest' => [ '/tmp/a.jpg' => 'a.jpg' ] ] ];
+
+        $out = Safe_Mutation::run( $ctx, function () use ( $id ) {
+            wp_update_post( [ 'ID' => $id, 'post_content' => 'NEW' ] );
+            return 'ok';
+        } );
+
+        $this->assertSame( 'precomputed-op-id', $out['operation_id'] );
+
+        $row = Snapshot_Store::get_by_operation( 'precomputed-op-id' );
+        $this->assertNotNull( $row );
+        $this->assertSame(
+            [ 'manifest' => [ '/tmp/a.jpg' => 'a.jpg' ] ],
+            $row['snapshot']['data']['files']
+        );
+        // The rest of the normal post snapshot data must still be present.
+        $this->assertSame( 'OLD', $row['snapshot']['data']['post']['post_content'] );
+    }
 }
