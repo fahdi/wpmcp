@@ -138,6 +138,7 @@ use WPMCP\Tools\Analytics\Get_Analytics_Connection_Status;
 use WPMCP\Tools\Analytics\Get_Analytics_Summary;
 use WPMCP\Tools\Analytics\Get_Top_Pages;
 use WPMCP\Tools\Analytics\Get_Search_Console_Summary;
+use WPMCP\Tools\Analytics\Get_Search_Console_Queries;
 use WPMCP\Tools\Identity\Create_Identity;
 use WPMCP\Tools\Identity\List_Identities;
 use WPMCP\Tools\Identity\Delete_Identity;
@@ -2310,14 +2311,27 @@ final class Plugin
      * same shape as WooCommerce's sales report or Multisite's site listing:
      * basic read/reporting access to a connected system, not deep analysis.
      *
-     * get-analytics-connection-status is registered unconditionally: it is
-     * the tool a caller uses to discover whether any analytics provider is
-     * connected at all, so it must be reachable regardless of connection
-     * state (mirrors wpmcp/is-multisite and get-seo-status). The remaining
-     * data tools in this group are added incrementally alongside it below.
+     * All five tools are registered unconditionally, including the four data
+     * tools (not just get-analytics-connection-status): unlike is_multisite(),
+     * which is fixed for the lifetime of a request, whether an analytics
+     * provider is connected can change at runtime without a page reload (a
+     * site admin can activate/connect Site Kit at any time), so gating
+     * registration on current connection state would require re-registering
+     * abilities mid-request. Each data tool instead returns a
+     * wpmcp_analytics_not_connected WP_Error gracefully when nothing is
+     * connected, the same "always in the catalog, fails gracefully at call
+     * time" shape as get-network-info et al. do for is_multisite() (the
+     * difference being is_multisite() cannot change per-request, so that
+     * group gates registration itself; this group's connection state can, so
+     * it does not).
      *
-     * Gated at manage_options, matching the issue's spec: analytics/Search
-     * Console data, even a "not connected" status check, is
+     * get-analytics-connection-status specifically is the tool a caller uses
+     * to discover whether any analytics provider is connected at all, before
+     * deciding whether to use the rest of the group (mirrors
+     * wpmcp/is-multisite and get-seo-status).
+     *
+     * Gated at manage_options for all five tools, matching the issue's spec:
+     * analytics/Search Console data, even a "not connected" status check, is
      * site-administration information, not a content-editing capability.
      *
      * This is deliberately READ-ONLY: analytics/Search Console summaries and
@@ -2330,6 +2344,7 @@ final class Plugin
         $get_analytics_summary = new Get_Analytics_Summary();
         $get_top_pages         = new Get_Top_Pages();
         $get_search_console_summary = new Get_Search_Console_Summary();
+        $get_search_console_queries = new Get_Search_Console_Queries();
 
         $registrar->register(new Ability(
             'wpmcp/get-analytics-connection-status',
@@ -2392,6 +2407,24 @@ final class Plugin
                 ],
             ],
             [$get_search_console_summary, 'handle'],
+            'manage_options',
+            'analytics',
+            'read'
+        ));
+
+        $registrar->register(new Ability(
+            'wpmcp/get-search-console-queries',
+            'free',
+            'Read-only list of top search queries by clicks over a date range (Y-m-d, defaulting to a trailing 28-day window ending yesterday) via the connected Search Console provider, with optional limit (default 10, capped at 100). Returns an error when no provider is connected',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'start_date' => [ 'type' => 'string' ],
+                    'end_date'   => [ 'type' => 'string' ],
+                    'limit'      => [ 'type' => 'integer' ],
+                ],
+            ],
+            [$get_search_console_queries, 'handle'],
             'manage_options',
             'analytics',
             'read'

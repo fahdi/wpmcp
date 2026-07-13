@@ -19,10 +19,10 @@ class PluginAbilitiesTest extends \WP_UnitTestCase
         }
     }
 
-    public function test_all_143_abilities_register_by_default(): void
+    public function test_all_144_abilities_register_by_default(): void
     {
         $registrar = Plugin::instance()->registrar();
-        $this->assertCount(143, $registrar->all());
+        $this->assertCount(144, $registrar->all());
     }
 
     public function test_read_ability_has_read_only_annotation(): void
@@ -317,6 +317,28 @@ class PluginAbilitiesTest extends \WP_UnitTestCase
         $this->assertSame('read', $abilities['wpmcp/list-identities']->operation);
         $this->assertSame('governance', $abilities['wpmcp/delete-identity']->domain);
         $this->assertSame('delete', $abilities['wpmcp/delete-identity']->operation);
+    }
+
+    public function test_analytics_abilities_are_tagged_analytics_domain(): void
+    {
+        $abilities = $this->index(Plugin::instance()->registrar()->all());
+
+        $this->assertSame('analytics', $abilities['wpmcp/get-analytics-connection-status']->domain);
+        $this->assertSame('read', $abilities['wpmcp/get-analytics-connection-status']->operation);
+        $this->assertSame('manage_options', $abilities['wpmcp/get-analytics-connection-status']->capability);
+
+        $this->assertSame('analytics', $abilities['wpmcp/get-analytics-summary']->domain);
+        $this->assertSame('read', $abilities['wpmcp/get-analytics-summary']->operation);
+        $this->assertSame('manage_options', $abilities['wpmcp/get-analytics-summary']->capability);
+
+        $this->assertSame('analytics', $abilities['wpmcp/get-top-pages']->domain);
+        $this->assertSame('read', $abilities['wpmcp/get-top-pages']->operation);
+
+        $this->assertSame('analytics', $abilities['wpmcp/get-search-console-summary']->domain);
+        $this->assertSame('read', $abilities['wpmcp/get-search-console-summary']->operation);
+
+        $this->assertSame('analytics', $abilities['wpmcp/get-search-console-queries']->domain);
+        $this->assertSame('read', $abilities['wpmcp/get-search-console-queries']->operation);
     }
 
     /** @param Ability[] $abilities @return array<string, Ability> */
