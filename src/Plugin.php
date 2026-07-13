@@ -27,6 +27,7 @@ use WPMCP\Tools\Export\List_Exports;
 use WPMCP\Tools\Export\Import_Content;
 use WPMCP\Tools\Analysis\Check_Contrast;
 use WPMCP\Tools\Analysis\Extract_Content;
+use WPMCP\Tools\Analysis\Analyze_Seo;
 use WPMCP\MCP\Ability;
 use WPMCP\MCP\Registrar;
 use WPMCP\Tools\Get_Page;
@@ -2773,6 +2774,26 @@ final class Plugin
                 'required'   => [ 'post_id' ],
             ],
             [$extract_content, 'handle'],
+            'edit_posts',
+            'analysis',
+            'read'
+        ));
+
+        $analyze_seo = new Analyze_Seo();
+
+        $registrar->register(new Ability(
+            'wpmcp/analyze-seo',
+            'pro',
+            'Score a post\'s on-page SEO (0-100) with severity-tagged findings: title and meta-description length, H1 and heading structure, word count, image alt coverage, internal/external link counts, focus-keyword density, and a Flesch reading-ease readability score. Read-only',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'post_id'       => [ 'type' => 'integer' ],
+                    'focus_keyword' => [ 'type' => 'string' ],
+                ],
+                'required'   => [ 'post_id' ],
+            ],
+            [$analyze_seo, 'handle'],
             'edit_posts',
             'analysis',
             'read'
