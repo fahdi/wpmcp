@@ -224,4 +224,58 @@ class Analytics_Adapter
 
         return min($limit, self::MAX_LIMIT);
     }
+
+    /**
+     * Normalize a GA4 Data API runReport response into the neutral summary
+     * shape: ['start_date'=>, 'end_date'=>, 'sessions'=>int, 'users'=>int,
+     * 'pageviews'=>int]. Pure: takes an already-fetched raw payload, so it is
+     * testable without a live GA4 call.
+     *
+     * Expects a single totals-style row (no dimensions requested) with
+     * exactly three metricValues in the order [sessions, activeUsers,
+     * screenPageViews], matching fetch_ga4_report()'s production request
+     * shape. Missing/empty rows default every count to 0 rather than erroring,
+     * since an empty report (e.g. a brand-new property with no traffic yet)
+     * is a valid, if unexciting, result.
+     *
+     * Honesty note: this fixture/mapping shape approximates the GA4 Data API
+     * runReport response (a "rows" array of objects, each with a
+     * "metricValues" array of {"value": "<numeric string>"} objects) based on
+     * the public API reference. It has not been verified against a live GA4
+     * response.
+     */
+    public static function normalize_ga4_summary(array $raw, string $start_date, string $end_date): array
+    {
+        $values = $raw['rows'][0]['metricValues'] ?? [];
+
+        return [
+            'start_date' => $start_date,
+            'end_date'   => $end_date,
+            'sessions'   => (int) ($values[0]['value'] ?? 0),
+            'users'      => (int) ($values[1]['value'] ?? 0),
+            'pageviews'  => (int) ($values[2]['value'] ?? 0),
+        ];
+    }
+
+    /**
+     * Normalize a GA4 Data API runReport response (one dimension: page path,
+     * one metric: screenPageViews) into a list of
+     * ['path'=>string,'pageviews'=>int]. Pure, same honesty caveat as
+     * normalize_ga4_summary(): the fixture shape approximates, but is not
+     * verified against, a live GA4 response.
+     */
+    public static function normalize_ga4_top_pages(array $raw): array
+    {
+        $rows = $raw['rows'] ?? [];
+        $out  = [];
+
+        foreach ($rows as $row) {
+            $out[] = [
+                'path'      => (string) ($row['dimensionValues'][0]['value'] ?? ''),
+                'pageviews' => (int) ($row['metricValues'][0]['value'] ?? 0),
+            ];
+        }
+
+        return $out;
+    }
 }

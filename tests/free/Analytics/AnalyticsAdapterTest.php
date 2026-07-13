@@ -191,4 +191,79 @@ class AnalyticsAdapterTest extends \WP_UnitTestCase
     {
         $this->assertSame(25, Analytics_Adapter::clamp_limit(25));
     }
+
+    /**
+     * Fixture shape approximates the GA4 Data API's runReport response
+     * (a "rows" array, each row carrying "metricValues", each an object with
+     * a string "value") based on the public API reference. It is NOT
+     * verified against a live GA4 response: this test only proves the
+     * adapter's normalizer maps a payload of this shape correctly, not that
+     * Google actually returns exactly this shape.
+     */
+    public function test_normalize_ga4_summary_maps_a_fixture_run_report_response(): void
+    {
+        $raw = [
+            'rows' => [
+                [
+                    'metricValues' => [
+                        ['value' => '1234'],
+                        ['value' => '987'],
+                        ['value' => '4321'],
+                    ],
+                ],
+            ],
+        ];
+
+        $result = Analytics_Adapter::normalize_ga4_summary($raw, '2026-01-01', '2026-01-28');
+
+        $this->assertSame([
+            'start_date' => '2026-01-01',
+            'end_date'   => '2026-01-28',
+            'sessions'   => 1234,
+            'users'      => 987,
+            'pageviews'  => 4321,
+        ], $result);
+    }
+
+    public function test_normalize_ga4_summary_defaults_to_zero_when_rows_are_missing(): void
+    {
+        $result = Analytics_Adapter::normalize_ga4_summary([], '2026-01-01', '2026-01-28');
+
+        $this->assertSame(0, $result['sessions']);
+        $this->assertSame(0, $result['users']);
+        $this->assertSame(0, $result['pageviews']);
+    }
+
+    /**
+     * Same honesty caveat as above: this fixture approximates the GA4
+     * runReport shape for a report with one dimension (page path) and one
+     * metric (screenPageViews), not a verified live response.
+     */
+    public function test_normalize_ga4_top_pages_maps_a_fixture_run_report_response(): void
+    {
+        $raw = [
+            'rows' => [
+                [
+                    'dimensionValues' => [['value' => '/']],
+                    'metricValues'    => [['value' => '500']],
+                ],
+                [
+                    'dimensionValues' => [['value' => '/about']],
+                    'metricValues'    => [['value' => '120']],
+                ],
+            ],
+        ];
+
+        $result = Analytics_Adapter::normalize_ga4_top_pages($raw);
+
+        $this->assertSame([
+            ['path' => '/', 'pageviews' => 500],
+            ['path' => '/about', 'pageviews' => 120],
+        ], $result);
+    }
+
+    public function test_normalize_ga4_top_pages_returns_an_empty_array_when_rows_are_missing(): void
+    {
+        $this->assertSame([], Analytics_Adapter::normalize_ga4_top_pages([]));
+    }
 }
