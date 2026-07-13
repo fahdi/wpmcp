@@ -28,6 +28,7 @@ use WPMCP\Tools\Export\List_Exports;
 use WPMCP\Tools\Export\Import_Content;
 use WPMCP\Tools\Analysis\Check_Contrast;
 use WPMCP\Tools\Code\Validate_Php_Snippet;
+use WPMCP\Tools\Cli\Run_Wp_Cli;
 use WPMCP\Tools\Analysis\Extract_Content;
 use WPMCP\Tools\Analysis\Analyze_Seo;
 use WPMCP\Tools\Analysis\Analyze_Accessibility;
@@ -1452,6 +1453,7 @@ final class Plugin
         $this->register_backup_abilities($registrar);
         $this->register_analysis_abilities($registrar);
         $this->register_code_abilities($registrar);
+        $this->register_cli_abilities($registrar);
         $this->register_connect_abilities($registrar);
         $this->register_governance_abilities($registrar);
         $this->register_multisite_abilities($registrar);
@@ -1484,6 +1486,52 @@ final class Plugin
             'manage_options',
             'code',
             'read'
+        ));
+    }
+
+    /**
+     * Register the guarded wp-cli executor (issue #44) as a PRO-tier ability:
+     * running arbitrary (allowlisted) wp-cli subcommands is an advanced,
+     * potentially destructive site-operations capability, the same class of
+     * feature as the Elementor deep-editing tools that are this plugin's
+     * only other 'pro' precedent, not a "heavy" operation in general.
+     *
+     * Gated at manage_options (site-administration capability, matching
+     * every other site-operations tool group), domain 'cli', operation
+     * 'update' (it can mutate site state depending on the subcommand run,
+     * even though the default allowlist is read-only-ish).
+     *
+     * All of the actual safety guarantees live in Wp_Cli_Guard and are
+     * independent of this registration: the tool is registered here, but
+     * Run_Wp_Cli::handle() still refuses to run anything unless wp-cli
+     * execution is explicitly enabled (default OFF), the environment
+     * permits it, the subcommand is allowlisted, the arguments are free of
+     * shell metacharacters, and the wp binary resolves. Registering this
+     * ability does not, by itself, allow any command to run. Not routed
+     * through Safe_Mutation: a wp-cli invocation's effects (if any) are
+     * whatever that subcommand does, which has no generic before-image this
+     * plugin could capture, so there is nothing here to snapshot or roll
+     * back.
+     */
+    private function register_cli_abilities(Registrar $registrar): void
+    {
+        $run_wp_cli = new Run_Wp_Cli();
+
+        $registrar->register(new Ability(
+            'wpmcp/run-wp-cli',
+            'pro',
+            'Run a guarded, allowlisted wp-cli subcommand (e.g. "core version", "plugin list", "option get siteurl") and return its stdout, stderr, and exit code. Disabled by default (opt in via the WPMCP_ALLOW_WP_CLI constant or wpmcp_allow_wp_cli filter); refuses to run on a production environment unless a separate override is also set; only subcommands on the wpmcp_wp_cli_allowlist filter\'s allowlist are permitted; arguments containing shell metacharacters are rejected before anything runs',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'command' => [ 'type' => 'string' ],
+                ],
+                'required'   => [ 'command' ],
+            ],
+            [$run_wp_cli, 'handle'],
+            'manage_options',
+            'cli',
+            'update'
         ));
     }
 
