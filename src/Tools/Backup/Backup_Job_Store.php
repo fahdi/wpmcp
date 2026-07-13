@@ -85,4 +85,47 @@ class Backup_Job_Store
         $stored = self::load();
         return $stored['jobs'][ $id ] ?? null;
     }
+
+    /**
+     * All jobs, newest (highest id) first. When $status is given, only jobs
+     * whose 'status' matches are returned; an empty string (the default)
+     * returns every job regardless of status.
+     */
+    public static function list(string $status = ''): array
+    {
+        $stored = self::load();
+        $jobs   = array_values($stored['jobs']);
+
+        if ('' !== $status) {
+            $jobs = array_values(array_filter(
+                $jobs,
+                static fn(array $job): bool => $status === $job['status']
+            ));
+        }
+
+        usort($jobs, static fn(array $a, array $b): int => $b['id'] <=> $a['id']);
+
+        return $jobs;
+    }
+
+    /**
+     * Merge $fields into the stored job identified by $id, always bumping
+     * updated_at to the current clock, and persist it. Returns the updated
+     * job record, or null if $id does not exist (nothing is written in that
+     * case).
+     */
+    public static function update(int $id, array $fields): ?array
+    {
+        $stored = self::load();
+        if (! isset($stored['jobs'][ $id ])) {
+            return null;
+        }
+
+        $job                    = array_merge($stored['jobs'][ $id ], $fields);
+        $job['updated_at']      = self::now();
+        $stored['jobs'][ $id ]  = $job;
+        self::save($stored);
+
+        return $job;
+    }
 }
