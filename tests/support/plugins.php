@@ -59,3 +59,12 @@ if ( ! function_exists( 'wpmcp_woocommerce_active' ) ) {
 		return class_exists( 'WooCommerce' ) && function_exists( 'WC' );
 	}
 }
+
+if ( ! function_exists( 'wpmcp_acf_active' ) ) {
+	/**
+	 * Whether Advanced Custom Fields is loaded in the current test run.
+	 */
+	function wpmcp_acf_active(): bool {
+		return function_exists( 'get_field' ) || class_exists( 'ACF' );
+	}
+}

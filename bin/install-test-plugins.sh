@@ -3,10 +3,10 @@
 # Install optional third-party plugins into the WordPress test install so their
 # parity areas can be exercised by the integration suite.
 #
-# Currently installs the latest stable Elementor and WooCommerce from the
-# wordpress.org plugin repository. The script is idempotent: plugins already
-# present are left untouched, so it is safe to run repeatedly both locally and
-# from CI.
+# Currently installs the latest stable Elementor, WooCommerce, and Advanced
+# Custom Fields from the wordpress.org plugin repository. The script is
+# idempotent: plugins already present are left untouched, so it is safe to run
+# repeatedly both locally and from CI.
 #
 # The plugins are only downloaded here. Activation happens in tests/bootstrap.php,
 # which requires each plugin's main file when it is present and skips it when it
@@ -25,6 +25,7 @@ PLUGINS_DIR="$WP_CORE_DIR/wp-content/plugins"
 PLUGINS=(
 	"elementor:elementor.php"
 	"woocommerce:woocommerce.php"
+	"advanced-custom-fields:acf.php"
 )
 
 download() {

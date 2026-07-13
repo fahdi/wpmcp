@@ -19,6 +19,7 @@ tests_add_filter( 'muplugins_loaded', function () {
     // missing plugin never fatals the suite; plugin-specific tests skip instead.
     wpmcp_maybe_require_plugin( 'elementor/elementor.php' );
     wpmcp_maybe_require_plugin( 'woocommerce/woocommerce.php' );
+    wpmcp_maybe_require_plugin( 'advanced-custom-fields/acf.php' );
 } );
 
 // WooCommerce needs its install routine to run against the test DB so its custom
