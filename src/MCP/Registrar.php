@@ -12,6 +12,12 @@ if (! defined('ABSPATH')) {
     exit;
 }
 
+/**
+ * Also enforces per-request scoped-identity narrowing and records every
+ * governance decision to the audit log (see Governance::is_within_identity_scope()
+ * and Governance_Audit_Log), on top of the pre-existing capability +
+ * Governance gating (issue #50).
+ */
 class Registrar
 {
     /** @var Ability[] */
