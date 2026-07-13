@@ -19,10 +19,10 @@ class PluginAbilitiesTest extends \WP_UnitTestCase
         }
     }
 
-    public function test_all_122_abilities_register_by_default(): void
+    public function test_all_123_abilities_register_by_default(): void
     {
         $registrar = Plugin::instance()->registrar();
-        $this->assertCount(122, $registrar->all());
+        $this->assertCount(123, $registrar->all());
     }
 
     public function test_read_ability_has_read_only_annotation(): void
@@ -266,6 +266,16 @@ class PluginAbilitiesTest extends \WP_UnitTestCase
         $this->assertSame('read', $abilities['wpmcp/get-seo-meta']->operation);
         $this->assertSame('seo', $abilities['wpmcp/update-seo-meta']->domain);
         $this->assertSame('update', $abilities['wpmcp/update-seo-meta']->operation);
+    }
+
+    public function test_connect_abilities_are_tagged_connect_domain(): void
+    {
+        $abilities = $this->index(Plugin::instance()->registrar()->all());
+
+        $this->assertSame('connect', $abilities['wpmcp/get-connection-info']->domain);
+        $this->assertSame('read', $abilities['wpmcp/get-connection-info']->operation);
+        $this->assertSame('manage_options', $abilities['wpmcp/get-connection-info']->capability);
+        $this->assertTrue($abilities['wpmcp/get-connection-info']->read_only_hint);
     }
 
     /** @param Ability[] $abilities @return array<string, Ability> */

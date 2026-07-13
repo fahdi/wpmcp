@@ -52,6 +52,7 @@ use WPMCP\Tools\SEO\SEO_Adapter;
 use WPMCP\Tools\Linking\Find_Orphan_Posts;
 use WPMCP\Tools\Linking\Suggest_Internal_Links;
 use WPMCP\Tools\Linking\Get_Link_Map;
+use WPMCP\Tools\Connect\Get_Connection_Info;
 use WPMCP\Tools\Content\List_Post_Types;
 use WPMCP\Tools\Content\List_Taxonomies;
 use WPMCP\Tools\Content\Create_Post;
@@ -1403,6 +1404,7 @@ final class Plugin
         $this->register_export_abilities($registrar);
         $this->register_analysis_abilities($registrar);
         $this->register_code_abilities($registrar);
+        $this->register_connect_abilities($registrar);
     }
 
     /**
@@ -3003,6 +3005,34 @@ final class Plugin
             [$check_contrast, 'handle'],
             'edit_posts',
             'analysis',
+            'read'
+        ));
+    }
+
+    /**
+     * Connection-info tooling for the EMCP admin/connection area (issue #18).
+     * get-connection-info is read-only and returns only a placeholder
+     * Authorization value, never a real credential, so it needs no
+     * Safe_Mutation snapshot/rollback and does not touch the safety core.
+     * Gated at manage_options since it exposes this site's MCP endpoint URL
+     * and connection instructions, matching the admin-only trust level of
+     * the other introspection tools (list-rest-routes, get-cache-status).
+     */
+    private function register_connect_abilities(Registrar $registrar): void
+    {
+        $get_connection_info = new Get_Connection_Info();
+
+        $registrar->register(new Ability(
+            'wpmcp/get-connection-info',
+            'free',
+            'Return how to connect an MCP client to this site: the MCP server endpoint URL and ready-to-paste connection snippets for Claude Code, Cursor, and Claude Desktop, each using an Application Password placeholder. Never returns a real credential. Read-only',
+            [
+                'type'       => 'object',
+                'properties' => [],
+            ],
+            [$get_connection_info, 'handle'],
+            'manage_options',
+            'connect',
             'read'
         ));
     }
