@@ -65,4 +65,16 @@ class GetSiteContextTest extends \WP_UnitTestCase
         $this->assertContains('category', $names);
         $this->assertContains('post_tag', $names);
     }
+
+    public function test_reports_user_count_locale_timezone_and_multisite_status(): void
+    {
+        self::factory()->user->create(['role' => 'subscriber']);
+
+        $out = (new Get_Site_Context())->handle([]);
+
+        $this->assertSame((int) count_users()['total_users'], $out['user_count']);
+        $this->assertSame(get_locale(), $out['locale']);
+        $this->assertSame(get_option('timezone_string'), $out['timezone']);
+        $this->assertSame(is_multisite(), $out['is_multisite']);
+    }
 }

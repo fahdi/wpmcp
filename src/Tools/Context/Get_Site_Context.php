@@ -56,8 +56,12 @@ class Get_Site_Context
                 'active_count' => count($active_plugins),
                 'active_slugs' => $active_plugins,
             ],
-            'post_types' => $post_types,
-            'taxonomies' => $taxonomies,
+            'post_types'   => $post_types,
+            'taxonomies'   => $taxonomies,
+            'user_count'   => (int) count_users()['total_users'],
+            'locale'       => get_locale(),
+            'timezone'     => get_option('timezone_string'),
+            'is_multisite' => is_multisite(),
         ];
     }
 }
