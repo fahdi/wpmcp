@@ -44,10 +44,16 @@ class Parse_Blocks
     private function normalize(array $block): array
     {
         return [
-            'blockName'   => $block['blockName'],
-            'attrs'       => is_array($block['attrs'] ?? null) ? $block['attrs'] : [],
-            'innerBlocks' => array_map([$this, 'normalize'], $block['innerBlocks'] ?? []),
-            'innerHTML'   => (string) ($block['innerHTML'] ?? ''),
+            'blockName'    => $block['blockName'],
+            'attrs'        => is_array($block['attrs'] ?? null) ? $block['attrs'] : [],
+            'innerBlocks'  => array_map([$this, 'normalize'], $block['innerBlocks'] ?? []),
+            'innerHTML'    => (string) ($block['innerHTML'] ?? ''),
+            // Preserved (not just innerHTML) so this tree round-trips losslessly
+            // through Serialize_Blocks: innerContent holds string fragments
+            // interleaved with null markers showing exactly where each inner
+            // block slots back in, which a flattened innerHTML summary cannot
+            // reconstruct on its own.
+            'innerContent' => array_values($block['innerContent'] ?? []),
         ];
     }
 }
