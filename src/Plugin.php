@@ -53,6 +53,7 @@ use WPMCP\Tools\Linking\Find_Orphan_Posts;
 use WPMCP\Tools\Linking\Suggest_Internal_Links;
 use WPMCP\Tools\Linking\Get_Link_Map;
 use WPMCP\Tools\Connect\Get_Connection_Info;
+use WPMCP\Tools\Connect\List_Tool_Catalog;
 use WPMCP\Tools\Content\List_Post_Types;
 use WPMCP\Tools\Content\List_Taxonomies;
 use WPMCP\Tools\Content\Create_Post;
@@ -3031,6 +3032,25 @@ final class Plugin
                 'properties' => [],
             ],
             [$get_connection_info, 'handle'],
+            'manage_options',
+            'connect',
+            'read'
+        ));
+
+        $list_tool_catalog = new List_Tool_Catalog();
+
+        $registrar->register(new Ability(
+            'wpmcp/list-tool-catalog',
+            'free',
+            'List every wpmcp ability registered on this site, grouped by domain, with each entry\'s tier (free/pro), operation, required capability, and read-only/destructive hints, plus a per-domain summary count. Optional domain and/or tier filters narrow the result. Read-only',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'domain' => [ 'type' => 'string' ],
+                    'tier'   => [ 'type' => 'string' ],
+                ],
+            ],
+            [$list_tool_catalog, 'handle'],
             'manage_options',
             'connect',
             'read'

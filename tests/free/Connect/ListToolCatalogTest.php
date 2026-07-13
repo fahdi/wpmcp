@@ -66,6 +66,7 @@ class ListToolCatalogTest extends \WP_UnitTestCase
 
         $names = array_column($out['domains']['connect'], 'name');
         $this->assertContains('wpmcp/get-connection-info', $names);
+        $this->assertContains('wpmcp/list-tool-catalog', $names);
     }
 
     public function test_summary_reports_a_count_per_domain(): void

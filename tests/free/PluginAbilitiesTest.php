@@ -19,10 +19,10 @@ class PluginAbilitiesTest extends \WP_UnitTestCase
         }
     }
 
-    public function test_all_123_abilities_register_by_default(): void
+    public function test_all_124_abilities_register_by_default(): void
     {
         $registrar = Plugin::instance()->registrar();
-        $this->assertCount(123, $registrar->all());
+        $this->assertCount(124, $registrar->all());
     }
 
     public function test_read_ability_has_read_only_annotation(): void
@@ -276,6 +276,11 @@ class PluginAbilitiesTest extends \WP_UnitTestCase
         $this->assertSame('read', $abilities['wpmcp/get-connection-info']->operation);
         $this->assertSame('manage_options', $abilities['wpmcp/get-connection-info']->capability);
         $this->assertTrue($abilities['wpmcp/get-connection-info']->read_only_hint);
+
+        $this->assertSame('connect', $abilities['wpmcp/list-tool-catalog']->domain);
+        $this->assertSame('read', $abilities['wpmcp/list-tool-catalog']->operation);
+        $this->assertSame('manage_options', $abilities['wpmcp/list-tool-catalog']->capability);
+        $this->assertTrue($abilities['wpmcp/list-tool-catalog']->read_only_hint);
     }
 
     /** @param Ability[] $abilities @return array<string, Ability> */
