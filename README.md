@@ -129,6 +129,8 @@ The same endpoint works with Cursor, Claude Desktop, and any MCP-compatible clie
 | `activate-plugin` | write (safe) | Activate an installed plugin; snapshots the prior `active_plugins` option |
 | `deactivate-plugin` | write (safe) | Deactivate a plugin; refuses protected packages (wpmcp, Elementor); snapshots the prior `active_plugins` option |
 | `install-plugin` | write | Install a plugin from wordpress.org by slug, optionally activating it |
+| `search-plugins` | read | Search the wordpress.org plugin directory by keyword, with optional tag/author filters and a capped `per_page` |
+| `get-plugin-info` | read | Fetch full wordpress.org plugin directory info for a slug: version, rating, installs, homepage, download link, and compatibility |
 | `update-plugin` | write (irreversible) | Update an installed plugin from wordpress.org. Disabled by default, requires `confirm: true`; not rollback-able |
 | `delete-plugin` | write (irreversible) | Permanently delete an installed plugin's files. Disabled by default, requires `confirm: true`; refuses protected or active plugins; not rollback-able |
 | `list-themes` | read | List installed themes with active status, parent theme, and pending update info |
