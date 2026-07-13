@@ -12,6 +12,7 @@ use WPMCP\Tools\Maintenance\Get_Maintenance_Status;
 use WPMCP\Tools\Maintenance\Enable_Maintenance;
 use WPMCP\Tools\Maintenance\Disable_Maintenance;
 use WPMCP\Tools\Context\Get_Site_Context;
+use WPMCP\Tools\Rest\List_Rest_Routes;
 use WPMCP\MCP\Ability;
 use WPMCP\MCP\Registrar;
 use WPMCP\Tools\Get_Page;
@@ -1333,6 +1334,7 @@ final class Plugin
         $this->register_cron_abilities($registrar);
         $this->register_maintenance_abilities($registrar);
         $this->register_context_abilities($registrar);
+        $this->register_rest_abilities($registrar);
     }
 
     /**
@@ -1522,6 +1524,37 @@ final class Plugin
             [$get_site_context, 'handle'],
             'edit_posts',
             'context',
+            'read'
+        ));
+    }
+
+    /**
+     * Register the generic WP REST API passthrough tools as free-tier
+     * abilities (parity gap tracked in issue #36).
+     *
+     * list-rest-routes is read-only discovery: it only reads the route table
+     * off rest_get_server(), never executes a route, and is gated at
+     * edit_posts like other read tools.
+     */
+    private function register_rest_abilities(Registrar $registrar): void
+    {
+        $list_rest_routes = new List_Rest_Routes();
+
+        $registrar->register(new Ability(
+            'wpmcp/list-rest-routes',
+            'free',
+            'List the routes registered on this site\'s WP REST API server (core plus every active plugin\'s namespace): route path, allowed HTTP methods, and a short summary of each route\'s args. Optional namespace and/or search filters narrow the result by substring match on the route path; limit caps the number of rows returned (default 50, max 200). Read-only: never executes a route',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'namespace' => [ 'type' => 'string' ],
+                    'search'    => [ 'type' => 'string' ],
+                    'limit'     => [ 'type' => 'integer' ],
+                ],
+            ],
+            [$list_rest_routes, 'handle'],
+            'edit_posts',
+            'rest',
             'read'
         ));
     }
