@@ -68,4 +68,27 @@ class CallRestTest extends \WP_UnitTestCase
             'confirm' => true,
         ]);
     }
+
+    public function test_permitted_write_succeeds_when_enabled_and_confirmed(): void
+    {
+        add_filter('wpmcp_enable_rest_writes', '__return_true');
+
+        $admin = self::factory()->user->create(['role' => 'administrator']);
+        wp_set_current_user($admin);
+
+        $out = (new Call_Rest())->handle([
+            'method'  => 'POST',
+            'route'   => '/wp/v2/posts',
+            'params'  => ['title' => 'Call-Rest POST Test Post', 'status' => 'publish'],
+            'confirm' => true,
+        ]);
+
+        $this->assertSame(201, $out['status']);
+        $this->assertIsArray($out['body']);
+        $this->assertSame('Call-Rest POST Test Post', $out['body']['title']['raw'] ?? null);
+        $this->assertFalse($out['recoverable']);
+
+        $post = get_post((int) $out['body']['id']);
+        $this->assertSame('Call-Rest POST Test Post', $post->post_title);
+    }
 }
