@@ -51,6 +51,7 @@ use WPMCP\Tools\SEO\Update_SEO_Meta;
 use WPMCP\Tools\SEO\SEO_Adapter;
 use WPMCP\Tools\I18n\I18n_Adapter;
 use WPMCP\Tools\I18n\List_Languages;
+use WPMCP\Tools\I18n\Get_Post_Translations;
 use WPMCP\Tools\Linking\Find_Orphan_Posts;
 use WPMCP\Tools\Linking\Suggest_Internal_Links;
 use WPMCP\Tools\Linking\Get_Link_Map;
@@ -2870,7 +2871,8 @@ final class Plugin
             return;
         }
 
-        $list_languages = new List_Languages();
+        $list_languages         = new List_Languages();
+        $get_post_translations  = new Get_Post_Translations();
 
         $registrar->register(new Ability(
             'wpmcp/list-languages',
@@ -2881,6 +2883,22 @@ final class Plugin
                 'properties' => [],
             ],
             [$list_languages, 'handle'],
+            'edit_posts',
+            'translation',
+            'read'
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/get-post-translations',
+            'free',
+            'Read a post\'s translations (the translated post id and title, keyed by language code) via the active multilingual plugin (Polylang or WPML)',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'post_id' => [ 'type' => 'integer' ],
+                ],
+                'required'   => [ 'post_id' ],
+            ],
+            [$get_post_translations, 'handle'],
             'edit_posts',
             'translation',
             'read'
