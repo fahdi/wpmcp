@@ -28,6 +28,7 @@ use WPMCP\Tools\Export\Import_Content;
 use WPMCP\Tools\Analysis\Check_Contrast;
 use WPMCP\Tools\Analysis\Extract_Content;
 use WPMCP\Tools\Analysis\Analyze_Seo;
+use WPMCP\Tools\Analysis\Analyze_Accessibility;
 use WPMCP\MCP\Ability;
 use WPMCP\MCP\Registrar;
 use WPMCP\Tools\Get_Page;
@@ -2794,6 +2795,25 @@ final class Plugin
                 'required'   => [ 'post_id' ],
             ],
             [$analyze_seo, 'handle'],
+            'edit_posts',
+            'analysis',
+            'read'
+        ));
+
+        $analyze_accessibility = new Analyze_Accessibility();
+
+        $registrar->register(new Ability(
+            'wpmcp/analyze-accessibility',
+            'pro',
+            'Scan a post\'s stored HTML for common WCAG issues (images missing alt text, heading order jumps, empty or non-descriptive link text, and form controls without labels) and return scored findings with the offending element locations. Read-only',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'post_id' => [ 'type' => 'integer' ],
+                ],
+                'required'   => [ 'post_id' ],
+            ],
+            [$analyze_accessibility, 'handle'],
             'edit_posts',
             'analysis',
             'read'
