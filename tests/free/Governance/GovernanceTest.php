@@ -94,4 +94,13 @@ class GovernanceTest extends \WP_UnitTestCase
 
         remove_all_filters('wpmcp_operation_enabled');
     }
+
+    public function test_stored_ability_toggle_disables_an_otherwise_enabled_ability(): void
+    {
+        $ability = $this->ability('wpmcp/delete-post');
+
+        Governance::set_ability_toggle('wpmcp/delete-post', false);
+
+        $this->assertFalse(Governance::is_ability_enabled($ability));
+    }
 }
