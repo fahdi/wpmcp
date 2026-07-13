@@ -75,4 +75,21 @@ class ConvertHtmlToBlocksTest extends \WP_UnitTestCase
         $this->assertStringContainsString('https://example.com/photo.jpg', $blocks[0]['innerHTML']);
         $this->assertStringContainsString('A photo', $blocks[0]['innerHTML']);
     }
+
+    public function test_wraps_unrecognized_element_in_core_html_block(): void
+    {
+        $html = '<custom-tag data-foo="bar">unusual content</custom-tag>';
+
+        $out = (new Convert_Html_To_Blocks())->handle(['html' => $html]);
+
+        $blocks = array_values(array_filter(
+            parse_blocks($out['markup']),
+            static fn (array $block): bool => null !== $block['blockName']
+        ));
+
+        $this->assertCount(1, $blocks);
+        $this->assertSame('core/html', $blocks[0]['blockName']);
+        $this->assertStringContainsString('unusual content', $blocks[0]['innerHTML']);
+        $this->assertStringContainsString('custom-tag', $blocks[0]['innerHTML']);
+    }
 }
