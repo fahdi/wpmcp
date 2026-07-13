@@ -2,10 +2,17 @@
 
 namespace WPMCP\Tests\Free\Context;
 
+use WPMCP\Pro\Gate;
 use WPMCP\Tools\Context\Get_Site_Context;
 
 class GetSiteContextTest extends \WP_UnitTestCase
 {
+    protected function tearDown(): void
+    {
+        Gate::set_pro_for_tests(null);
+        parent::tearDown();
+    }
+
     public function test_reports_site_identity_and_versions(): void
     {
         $out = (new Get_Site_Context())->handle([]);
@@ -87,5 +94,21 @@ class GetSiteContextTest extends \WP_UnitTestCase
         $this->assertTrue($out['capabilities']['acf']);
         $this->assertSame('yoast' === wpmcp_seo_plugin(), $out['capabilities']['yoast']);
         $this->assertSame('rankmath' === wpmcp_seo_plugin(), $out['capabilities']['rankmath']);
+    }
+
+    public function test_reports_wpmcp_plugin_version_and_pro_status(): void
+    {
+        Gate::set_pro_for_tests(true);
+
+        $out = (new Get_Site_Context())->handle([]);
+
+        $this->assertSame(WPMCP_VERSION, $out['wpmcp']['version']);
+        $this->assertTrue($out['wpmcp']['pro_active']);
+
+        Gate::set_pro_for_tests(false);
+
+        $out = (new Get_Site_Context())->handle([]);
+
+        $this->assertFalse($out['wpmcp']['pro_active']);
     }
 }

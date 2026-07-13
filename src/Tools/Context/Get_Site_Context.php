@@ -2,6 +2,8 @@
 
 namespace WPMCP\Tools\Context;
 
+use WPMCP\Pro\Gate;
+
 if (! defined('ABSPATH')) {
     exit;
 }
@@ -63,6 +65,10 @@ class Get_Site_Context
             'timezone'     => get_option('timezone_string'),
             'is_multisite' => is_multisite(),
             'capabilities' => $this->capabilities(),
+            'wpmcp'        => [
+                'version'    => defined('WPMCP_VERSION') ? WPMCP_VERSION : '',
+                'pro_active' => Gate::is_pro(),
+            ],
         ];
     }
 
