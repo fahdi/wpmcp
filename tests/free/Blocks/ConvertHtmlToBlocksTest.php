@@ -127,4 +127,36 @@ class ConvertHtmlToBlocksTest extends \WP_UnitTestCase
         $this->assertSame('core/quote', $blocks[0]['blockName']);
         $this->assertStringContainsString('A quote', $blocks[0]['innerHTML']);
     }
+
+    public function test_converts_pre_to_core_code(): void
+    {
+        $html = '<pre><code>echo "hi";</code></pre>';
+
+        $out = (new Convert_Html_To_Blocks())->handle(['html' => $html]);
+
+        $blocks = array_values(array_filter(
+            parse_blocks($out['markup']),
+            static fn (array $block): bool => null !== $block['blockName']
+        ));
+
+        $this->assertCount(1, $blocks);
+        $this->assertSame('core/code', $blocks[0]['blockName']);
+        $this->assertStringContainsString('echo "hi";', $blocks[0]['innerHTML']);
+    }
+
+    public function test_converts_bare_top_level_code_to_core_code(): void
+    {
+        $html = '<code>echo "hi";</code>';
+
+        $out = (new Convert_Html_To_Blocks())->handle(['html' => $html]);
+
+        $blocks = array_values(array_filter(
+            parse_blocks($out['markup']),
+            static fn (array $block): bool => null !== $block['blockName']
+        ));
+
+        $this->assertCount(1, $blocks);
+        $this->assertSame('core/code', $blocks[0]['blockName']);
+        $this->assertStringContainsString('echo "hi";', $blocks[0]['innerHTML']);
+    }
 }

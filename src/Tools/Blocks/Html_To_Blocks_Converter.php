@@ -57,7 +57,6 @@ class Html_To_Blocks_Converter
         }
 
         $tag = strtolower($node->nodeName);
-        $inner_html = self::inner_html($document, $node);
         $outer_html = self::outer_html($document, $node);
 
         if (1 === preg_match('/^h([1-6])$/', $tag, $matches)) {
@@ -71,8 +70,28 @@ class Html_To_Blocks_Converter
             'ol'         => self::leaf_block('core/list', ['ordered' => true], $outer_html),
             'img'        => self::leaf_block('core/image', [], '<figure class="wp-block-image">' . $outer_html . '</figure>'),
             'blockquote' => self::leaf_block('core/quote', [], $outer_html),
+            'pre'        => self::leaf_block('core/code', [], self::pre_to_code_html($document, $node)),
+            'code'       => self::leaf_block('core/code', [], self::pre_to_code_html($document, $node, wrap_in_pre: true)),
             default      => self::html_block($outer_html),
         };
+    }
+
+    /**
+     * Normalize a <pre>/<code> node into the exact markup real Gutenberg
+     * produces for core/code: <pre class="wp-block-code"><code>...</code></pre>.
+     * When $wrap_in_pre is true, $node is itself a bare top-level <code>
+     * element that needs its own <pre> wrapper; otherwise $node is the <pre>
+     * and its inner content is reused as-is (already containing a <code>).
+     */
+    private static function pre_to_code_html(\DOMDocument $document, \DOMNode $node, bool $wrap_in_pre = false): string
+    {
+        if ($wrap_in_pre) {
+            $code_html = self::outer_html($document, $node);
+            return '<pre class="wp-block-code">' . $code_html . '</pre>';
+        }
+
+        $inner = self::inner_html($document, $node);
+        return '<pre class="wp-block-code">' . $inner . '</pre>';
     }
 
     private static function leaf_block(string $name, array $attrs, string $html): array
