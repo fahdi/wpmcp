@@ -22,6 +22,23 @@ class Get_Site_Context
         $theme          = wp_get_theme();
         $active_plugins = (array) get_option('active_plugins', []);
 
+        $post_types = [];
+        foreach (get_post_types(['public' => true], 'objects') as $name => $object) {
+            $post_types[] = [
+                'name'  => (string) $name,
+                'label' => (string) ($object->label ?? $name),
+                'count' => (int) wp_count_posts($name)->publish,
+            ];
+        }
+
+        $taxonomies = [];
+        foreach (get_taxonomies(['public' => true], 'objects') as $name => $object) {
+            $taxonomies[] = [
+                'name'  => (string) $name,
+                'label' => (string) ($object->label ?? $name),
+            ];
+        }
+
         return [
             'site' => [
                 'name'    => get_bloginfo('name'),
@@ -39,6 +56,8 @@ class Get_Site_Context
                 'active_count' => count($active_plugins),
                 'active_slugs' => $active_plugins,
             ],
+            'post_types' => $post_types,
+            'taxonomies' => $taxonomies,
         ];
     }
 }

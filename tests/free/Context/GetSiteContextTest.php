@@ -31,4 +31,38 @@ class GetSiteContextTest extends \WP_UnitTestCase
         $this->assertSame(count($active_plugins), $out['plugins']['active_count']);
         $this->assertSame($active_plugins, $out['plugins']['active_slugs']);
     }
+
+    public function test_reports_public_post_type_counts_including_a_freshly_created_post(): void
+    {
+        $before = (new Get_Site_Context())->handle([]);
+        $before_count = 0;
+        foreach ($before['post_types'] as $row) {
+            if ('post' === $row['name']) {
+                $before_count = $row['count'];
+            }
+        }
+
+        self::factory()->post->create(['post_type' => 'post', 'post_status' => 'publish']);
+
+        $out = (new Get_Site_Context())->handle([]);
+
+        $post_row = null;
+        foreach ($out['post_types'] as $row) {
+            if ('post' === $row['name']) {
+                $post_row = $row;
+            }
+        }
+
+        $this->assertNotNull($post_row, 'Expected the "post" post type to be present');
+        $this->assertSame($before_count + 1, $post_row['count']);
+    }
+
+    public function test_reports_public_taxonomies(): void
+    {
+        $out = (new Get_Site_Context())->handle([]);
+
+        $names = array_column($out['taxonomies'], 'name');
+        $this->assertContains('category', $names);
+        $this->assertContains('post_tag', $names);
+    }
 }
