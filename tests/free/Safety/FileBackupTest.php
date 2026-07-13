@@ -198,4 +198,26 @@ class FileBackupTest extends \WP_UnitTestCase
         File_Backup::restore('op-nothing', []);
         $this->addToAssertionCount(1);
     }
+
+    public function test_delete_backup_dir_removes_the_whole_operation_directory(): void
+    {
+        $id    = $this->make_attachment_with_files();
+        $files = File_Backup::collect_attachment_files($id);
+        $op_id = 'op-delete-' . $id;
+        $dir   = File_Backup::operation_dir($op_id);
+
+        File_Backup::backup($op_id, $files);
+        $this->assertDirectoryExists($dir);
+        $this->assertFileExists($dir . '/.htaccess');
+
+        File_Backup::delete_backup_dir($op_id);
+
+        $this->assertDirectoryDoesNotExist($dir);
+    }
+
+    public function test_delete_backup_dir_is_a_noop_when_nothing_to_delete(): void
+    {
+        File_Backup::delete_backup_dir('op-never-existed');
+        $this->addToAssertionCount(1);
+    }
 }

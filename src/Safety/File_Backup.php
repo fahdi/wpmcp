@@ -105,6 +105,26 @@ class File_Backup
         }
     }
 
+    /**
+     * Delete a per-operation backup directory and everything in it. Called
+     * when a snapshot is pruned (Snapshot_Store::prune()), so backups do
+     * not accumulate forever. A no-op if the directory does not exist.
+     */
+    public static function delete_backup_dir(string $operation_id): void
+    {
+        $dir = self::operation_dir($operation_id);
+        if (! is_dir($dir)) {
+            return;
+        }
+        foreach (array_diff((array) scandir($dir), ['.', '..']) as $entry) {
+            $path = $dir . '/' . $entry;
+            if (is_file($path)) {
+                unlink($path);
+            }
+        }
+        rmdir($dir);
+    }
+
     /** Block direct web access to a backup directory (deny + empty index). */
     private static function protect_dir(string $dir): void
     {
