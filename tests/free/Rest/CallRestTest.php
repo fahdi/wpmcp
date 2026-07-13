@@ -34,4 +34,23 @@ class CallRestTest extends \WP_UnitTestCase
         $ids = array_column($out['body'], 'id');
         $this->assertContains($post_id, $ids);
     }
+
+    public function test_subscriber_gets_the_endpoints_own_permission_denial(): void
+    {
+        // context=edit on /wp/v2/posts requires edit_posts in core's own
+        // permission_callback. A subscriber lacks it, so the endpoint itself
+        // must refuse the request; call-rest must not bypass that check.
+        $subscriber = self::factory()->user->create(['role' => 'subscriber']);
+        wp_set_current_user($subscriber);
+
+        $out = (new Call_Rest())->handle([
+            'method' => 'GET',
+            'route'  => '/wp/v2/posts',
+            'params' => ['context' => 'edit'],
+        ]);
+
+        $this->assertContains($out['status'], [401, 403]);
+        $this->assertIsArray($out['body']);
+        $this->assertArrayHasKey('code', $out['body']);
+    }
 }
