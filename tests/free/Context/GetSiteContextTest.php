@@ -16,4 +16,19 @@ class GetSiteContextTest extends \WP_UnitTestCase
         $this->assertSame(get_bloginfo('version'), $out['wordpress_version']);
         $this->assertSame(PHP_VERSION, $out['php_version']);
     }
+
+    public function test_reports_active_theme_and_plugin_summary(): void
+    {
+        $theme = wp_get_theme();
+
+        $out = (new Get_Site_Context())->handle([]);
+
+        $this->assertSame($theme->get('Name'), $out['theme']['name']);
+        $this->assertSame($theme->get('Version'), $out['theme']['version']);
+        $this->assertSame((bool) $theme->parent(), $out['theme']['is_child']);
+
+        $active_plugins = (array) get_option('active_plugins', []);
+        $this->assertSame(count($active_plugins), $out['plugins']['active_count']);
+        $this->assertSame($active_plugins, $out['plugins']['active_slugs']);
+    }
 }

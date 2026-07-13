@@ -19,6 +19,9 @@ class Get_Site_Context
 {
     public function handle(array $args): array
     {
+        $theme          = wp_get_theme();
+        $active_plugins = (array) get_option('active_plugins', []);
+
         return [
             'site' => [
                 'name'    => get_bloginfo('name'),
@@ -27,6 +30,15 @@ class Get_Site_Context
             ],
             'wordpress_version' => get_bloginfo('version'),
             'php_version'       => PHP_VERSION,
+            'theme'             => [
+                'name'     => $theme->get('Name'),
+                'version'  => $theme->get('Version'),
+                'is_child' => (bool) $theme->parent(),
+            ],
+            'plugins' => [
+                'active_count' => count($active_plugins),
+                'active_slugs' => $active_plugins,
+            ],
         ];
     }
 }
