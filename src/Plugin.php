@@ -122,6 +122,11 @@ use WPMCP\Tools\Cron\List_Cron_Events;
 use WPMCP\Tools\Cron\Schedule_Event;
 use WPMCP\Tools\Cron\Unschedule_Event;
 use WPMCP\Tools\Cron\Run_Event;
+use WPMCP\Tools\Backup\Trigger_Backup;
+use WPMCP\Tools\Backup\Get_Backup_Status;
+use WPMCP\Tools\Backup\List_Backup_Jobs;
+use WPMCP\Tools\Backup\Cancel_Backup_Job;
+use WPMCP\Tools\Backup\Run_Backup_Job;
 use WPMCP\Tools\Elementor\List_Widgets;
 use WPMCP\Tools\Elementor\Get_Widget_Schema;
 use WPMCP\Tools\Elementor\Get_Elementor_Data;
@@ -190,6 +195,10 @@ final class Plugin
             }
             add_action('admin_menu', [$this, 'register_admin_menu']);
             add_action('wp_ajax_wpmcp_restore', [new Restore_Controller(), 'handle']);
+            // The WP-Cron executor for trigger-backup's scheduled events: runs
+            // the queued job (producing a backup artifact) and flips its
+            // status to completed/failed. See Run_Backup_Job's docblock.
+            add_action(Run_Backup_Job::HOOK, [new Run_Backup_Job(), 'handle']);
             // Front-end maintenance-mode enforcement. template_redirect runs after
             // WordPress has resolved the query but before a template is loaded, and
             // does not fire for wp-admin or REST requests, so authenticated capable
@@ -1410,6 +1419,7 @@ final class Plugin
         $this->register_block_abilities($registrar);
         $this->register_structure_abilities($registrar);
         $this->register_export_abilities($registrar);
+        $this->register_backup_abilities($registrar);
         $this->register_analysis_abilities($registrar);
         $this->register_code_abilities($registrar);
         $this->register_connect_abilities($registrar);
@@ -1943,6 +1953,99 @@ final class Plugin
             'manage_options',
             'export',
             'create'
+        ));
+    }
+
+    /**
+     * Register the async backup job orchestration tools as free-tier
+     * abilities (parity gap tracked in issue #53). This sits on top of the
+     * synchronous export-content tool: trigger-backup queues a job and
+     * schedules a WP-Cron event (Run_Backup_Job) that produces the actual
+     * artifact and flips the job's status, so a backup on a large site does
+     * not have to complete within a single MCP request/response cycle.
+     *
+     * All four are gated at manage_options, matching Export's and Cron's
+     * capability (both are comparable site-operations-level tool groups, and
+     * this plugin's only precedent for a stronger, pro-tier gate is the
+     * Elementor deep-editing tools specifically, not "heavy" operations in
+     * general). trigger-backup is 'create' (it creates a job record) and
+     * cancel-backup-job is 'update' (it transitions an existing job's
+     * status); get-backup-status and list-backup-jobs are 'read'.
+     *
+     * The backup job itself only reads site data and writes a backup
+     * artifact file plus the wpmcp_backup_jobs option: it never mutates user
+     * content, so none of these are routed through Safe_Mutation and none
+     * touch the safety core.
+     */
+    private function register_backup_abilities(Registrar $registrar): void
+    {
+        $trigger_backup     = new Trigger_Backup();
+        $get_backup_status  = new Get_Backup_Status();
+        $list_backup_jobs   = new List_Backup_Jobs();
+        $cancel_backup_job  = new Cancel_Backup_Job();
+
+        $registrar->register(new Ability(
+            'wpmcp/trigger-backup',
+            'free',
+            'Queue an asynchronous backup job and schedule a WP-Cron event that produces the backup artifact (a WXR export via export-content) and flips the job\'s status to completed or failed. Returns the job id immediately, before the backup itself has run, so a large-site backup does not have to complete within a single request',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'type'  => [ 'type' => 'string' ],
+                    'scope' => [ 'type' => 'string' ],
+                ],
+            ],
+            [$trigger_backup, 'handle'],
+            'manage_options',
+            'backup',
+            'create'
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/get-backup-status',
+            'free',
+            'Return a backup job\'s current record (status: queued/running/completed/failed/canceled, result artifact reference or error, timestamps) by job id. Read-only',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'job_id' => [ 'type' => 'integer' ],
+                ],
+                'required'   => [ 'job_id' ],
+            ],
+            [$get_backup_status, 'handle'],
+            'manage_options',
+            'backup',
+            'read'
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/list-backup-jobs',
+            'free',
+            'List backup jobs, newest first, with an optional status filter (queued/running/completed/failed/canceled). Read-only',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'status' => [ 'type' => 'string' ],
+                ],
+            ],
+            [$list_backup_jobs, 'handle'],
+            'manage_options',
+            'backup',
+            'read'
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/cancel-backup-job',
+            'free',
+            'Cancel a queued backup job: unschedule its WP-Cron event and mark it canceled. Refuses with an error if the job is no longer queued (already running or in a terminal status) or unknown',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'job_id' => [ 'type' => 'integer' ],
+                ],
+                'required'   => [ 'job_id' ],
+            ],
+            [$cancel_backup_job, 'handle'],
+            'manage_options',
+            'backup',
+            'update'
         ));
     }
 
