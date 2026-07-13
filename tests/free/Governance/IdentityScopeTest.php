@@ -38,4 +38,11 @@ class IdentityScopeTest extends \WP_UnitTestCase
     {
         $this->assertTrue(Governance::is_within_identity_scope($this->ability()));
     }
+
+    public function test_an_unknown_identity_name_results_in_default_deny(): void
+    {
+        Identity_Context::set_current_for_tests('never-registered');
+
+        $this->assertFalse(Governance::is_within_identity_scope($this->ability()));
+    }
 }
