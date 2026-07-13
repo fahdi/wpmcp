@@ -26,6 +26,7 @@ use WPMCP\Tools\Export\Export_Content;
 use WPMCP\Tools\Export\List_Exports;
 use WPMCP\Tools\Export\Import_Content;
 use WPMCP\Tools\Analysis\Check_Contrast;
+use WPMCP\Tools\Code\Validate_Php_Snippet;
 use WPMCP\Tools\Analysis\Extract_Content;
 use WPMCP\Tools\Analysis\Analyze_Seo;
 use WPMCP\Tools\Analysis\Analyze_Accessibility;
@@ -1355,6 +1356,36 @@ final class Plugin
         $this->register_structure_abilities($registrar);
         $this->register_export_abilities($registrar);
         $this->register_analysis_abilities($registrar);
+        $this->register_code_abilities($registrar);
+    }
+
+    /**
+     * Static-analysis tools for admin/AI-authored PHP snippets. Gated at
+     * manage_options since arbitrary PHP review is a site-administration
+     * capability, not a content-editing one. validate-php-snippet never
+     * executes the snippet it is given, so there is nothing to snapshot or
+     * roll back; it never touches Safe_Mutation.
+     */
+    private function register_code_abilities(Registrar $registrar): void
+    {
+        $validate_php_snippet = new Validate_Php_Snippet();
+
+        $registrar->register(new Ability(
+            'wpmcp/validate-php-snippet',
+            'free',
+            'Statically validate a PHP code snippet without executing it: report syntax validity (with error message and line if invalid) and safety findings (severity-tagged warnings for dangerous constructs such as eval, exec, shell_exec, backticks, obfuscation decoders, request-driven execution, and outbound HTTP calls). Read-only, never runs the snippet',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'code' => [ 'type' => 'string' ],
+                ],
+                'required'   => [ 'code' ],
+            ],
+            [$validate_php_snippet, 'handle'],
+            'manage_options',
+            'code',
+            'read'
+        ));
     }
 
     /**
