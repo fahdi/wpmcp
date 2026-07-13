@@ -295,6 +295,13 @@ class Rollback_Service
      * case as "exists, update in place" would silently overwrite an
      * unrelated post's content; routing it through resurrect() instead lets
      * the import_id collision check catch it and fail loudly.
+     *
+     * A 'files' entry in $snapshot['data'] (only ever present for an
+     * attachment's force-delete snapshot, see Delete_Media/File_Backup) is
+     * restored LAST, after the post row above is back: the physical bytes
+     * are only meaningful once the attachment record they belong to exists
+     * again. Every other object type, and posts without a 'files' key,
+     * never reach that branch, so this is purely additive.
      */
     public static function apply_snapshot(array $snapshot): void
     {
@@ -356,6 +363,22 @@ class Rollback_Service
         foreach ((array) ($snapshot['data']['terms'] ?? []) as $taxonomy => $term_ids) {
             wp_set_object_terms($object_id, array_map('intval', (array) $term_ids), (string) $taxonomy, false);
         }
+
+        self::restore_files($snapshot['data']['files'] ?? null);
+    }
+
+    /**
+     * Restore an attachment's backed-up physical files, when present. Only
+     * a force-deleted attachment's snapshot ever carries a 'files' entry
+     * (['operation_id' => ..., 'manifest' => [original_abs_path => stored_filename]]);
+     * every other snapshot has no such key, making this a no-op for them.
+     */
+    private static function restore_files(?array $files): void
+    {
+        if (empty($files['manifest']) || empty($files['operation_id'])) {
+            return;
+        }
+        File_Backup::restore((string) $files['operation_id'], (array) $files['manifest']);
     }
 
     /**

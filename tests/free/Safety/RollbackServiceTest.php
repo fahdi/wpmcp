@@ -2,15 +2,28 @@
 
 namespace WPMCP\Tests\Free\Safety;
 
-use WPMCP\Safety\{Mutation_Failed, Rollback_Service, Safe_Mutation, Snapshot, Snapshot_Store};
+use WPMCP\Safety\{File_Backup, Mutation_Failed, Rollback_Service, Safe_Mutation, Snapshot, Snapshot_Store};
 use WPMCP\Tools\Content\Delete_Post;
 
 class RollbackServiceTest extends \WP_UnitTestCase
 {
+    private array $cleanup_paths = [];
+
     protected function setUp(): void
     {
         parent::setUp();
         Snapshot_Store::install();
+    }
+
+    protected function tearDown(): void
+    {
+        foreach ($this->cleanup_paths as $path) {
+            if (is_file($path)) {
+                unlink($path);
+            }
+        }
+        $this->cleanup_paths = [];
+        parent::tearDown();
     }
 
     private function edit(int $id, string $to, string $sess): array
@@ -252,5 +265,62 @@ class RollbackServiceTest extends \WP_UnitTestCase
 
         $this->assertSame('', get_comment_meta($comment_id, 'brand_new_key', true));
         $this->assertArrayNotHasKey('brand_new_key', get_comment_meta($comment_id));
+    }
+
+    /**
+     * When a snapshot carries a 'files' entry (only ever set by an
+     * attachment force-delete; see Delete_Media), apply_snapshot() must
+     * restore those backed-up files to their original paths, AFTER the
+     * attachment's DB record is resurrected. Snapshots without a 'files'
+     * key (every other object type, and non-attachment posts) must be
+     * completely unaffected: this is purely additive.
+     */
+    public function test_apply_snapshot_restores_backed_up_files_after_resurrecting_attachment(): void
+    {
+        $uploads = wp_upload_dir();
+        $main    = trailingslashit($uploads['path']) . 'rollback-test-original.jpg';
+        wp_mkdir_p(dirname($main));
+        file_put_contents($main, 'pretend-image-bytes');
+        $this->cleanup_paths[] = $main;
+
+        $id = self::factory()->attachment->create_object([
+            'file'           => $main,
+            'post_mime_type' => 'image/jpeg',
+            'post_title'     => 'Rollback Sunset',
+        ]);
+
+        $op_id    = 'op-file-restore-test';
+        $manifest = File_Backup::backup($op_id, [$main]);
+        $this->assertNotEmpty($manifest);
+
+        $snapshot                  = Snapshot::capture('post', $id);
+        $snapshot['data']['files'] = ['operation_id' => $op_id, 'manifest' => $manifest];
+
+        // Simulate the force-delete this snapshot would have been taken
+        // for: wp_delete_attachment(..., true) unlinks the physical file
+        // itself as part of destroying the attachment.
+        wp_delete_attachment($id, true);
+        $this->assertNull(get_post($id));
+        $this->assertFileDoesNotExist($main);
+
+        Rollback_Service::apply_snapshot($snapshot);
+
+        $this->assertNotNull(get_post($id));
+        $this->assertSame('attachment', get_post($id)->post_type);
+        $this->assertFileExists($main);
+        $this->assertSame('pretend-image-bytes', file_get_contents($main));
+
+        File_Backup::delete_backup_dir($op_id);
+    }
+
+    public function test_apply_snapshot_without_files_key_is_unaffected(): void
+    {
+        $id       = self::factory()->post->create(['post_content' => 'V0']);
+        $snapshot = Snapshot::capture('post', $id);
+
+        wp_update_post(['ID' => $id, 'post_content' => 'V1']);
+        Rollback_Service::apply_snapshot($snapshot);
+
+        $this->assertSame('V0', get_post($id)->post_content);
     }
 }
