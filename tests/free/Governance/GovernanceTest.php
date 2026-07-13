@@ -103,4 +103,22 @@ class GovernanceTest extends \WP_UnitTestCase
 
         $this->assertFalse(Governance::is_ability_enabled($ability));
     }
+
+    public function test_stored_domain_toggle_disables_a_whole_domain(): void
+    {
+        $ability = $this->ability('wpmcp/delete-rows', 'database', 'delete');
+
+        Governance::set_domain_toggle('database', false);
+
+        $this->assertFalse(Governance::is_ability_enabled($ability));
+    }
+
+    public function test_stored_domain_toggle_does_not_affect_other_domains(): void
+    {
+        $ability = $this->ability('wpmcp/get-post', 'content', 'read');
+
+        Governance::set_domain_toggle('database', false);
+
+        $this->assertTrue(Governance::is_ability_enabled($ability));
+    }
 }
