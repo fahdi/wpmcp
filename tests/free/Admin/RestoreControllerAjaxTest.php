@@ -24,22 +24,35 @@ class RestoreControllerAjaxTest extends \WP_Ajax_UnitTestCase
     }
 
     /**
-     * The ajax test harness runs a full admin-ajax request cycle, which can
-     * trigger WordPress core's wp_version_check() to api.wordpress.org.
-     * That is a real outbound HTTP call, and it can flake or fail in a CI
-     * environment without reliable network access. Preempt only that
-     * specific request with a canned, harmless response so the test never
-     * makes a real network call; every other HTTP request is left alone.
+     * The ajax test harness runs a full admin-ajax request cycle, which fires
+     * admin_init and with it core's _maybe_update_core(), _maybe_update_plugins(),
+     * and _maybe_update_themes(). Whenever the update_core/update_plugins/
+     * update_themes site transients are missing or stale, those helpers call
+     * wp_version_check()/wp_update_plugins()/wp_update_themes(), each a real
+     * outbound HTTP call to api.wordpress.org (core hits .../core/version-check/,
+     * plugins and themes hit .../plugins/update-check/ and .../themes/update-check/).
+     * Whether the transients are fresh enough to skip the call depends on what
+     * other tests ran before this one in the same process, so left unstubbed
+     * this test intermittently makes a real network call and errors when the
+     * sandbox has no outbound network access. Preempt every api.wordpress.org
+     * *-check request with a 200 response and an empty body: core treats a
+     * response body that fails to decode into the expected shape as "nothing
+     * to update" and returns early without writing a transient. A WP_Error
+     * does NOT work here: when SSL is available core treats a WP_Error as a
+     * possible SSL negotiation failure, logs a wp_trigger_error() warning,
+     * and retries over plain HTTP, which this test environment surfaces as a
+     * test error. An empty 200 body has no such retry path in any of the
+     * three callers, so it is the only shape safe for all of them.
      */
     public function stub_version_check($preempt, $parsed_args, $url)
     {
-        if (false === strpos($url, 'api.wordpress.org') || false === strpos($url, 'version-check')) {
+        if (false === strpos($url, 'api.wordpress.org') || false === strpos($url, '-check')) {
             return $preempt;
         }
 
         return [
             'headers'  => [],
-            'body'     => wp_json_encode(['offers' => []]),
+            'body'     => '',
             'response' => ['code' => 200, 'message' => 'OK'],
             'cookies'  => [],
             'filename' => null,
@@ -170,5 +183,39 @@ class RestoreControllerAjaxTest extends \WP_Ajax_UnitTestCase
         $this->assertTrue($response['data']['restored']);
 
         $this->assertSame('V0', get_post($id)->post_content);
+    }
+
+    /**
+     * stub_version_check() must preempt every api.wordpress.org *-check
+     * endpoint admin_init can trigger, not only core's version-check: plugin
+     * and theme update checks use "update-check" rather than "version-check"
+     * in their path and were previously left to hit the real network.
+     */
+    public function test_stub_intercepts_core_plugin_and_theme_update_check_urls(): void
+    {
+        foreach ([
+            'https://api.wordpress.org/core/version-check/1.7/',
+            'https://api.wordpress.org/plugins/update-check/1.1/',
+            'https://api.wordpress.org/themes/update-check/1.1/',
+        ] as $url) {
+            $result = $this->stub_version_check(false, [], $url);
+
+            $this->assertIsArray($result, "Expected {$url} to be intercepted with a canned response.");
+            $this->assertSame(200, $result['response']['code']);
+            $this->assertSame('', $result['body']);
+        }
+    }
+
+    /**
+     * A non-wordpress.org host must never be intercepted by this stub: it
+     * only exists to preempt the specific known-safe *-check endpoints.
+     */
+    public function test_stub_leaves_unrelated_hosts_untouched(): void
+    {
+        $preempt = false;
+
+        $result = $this->stub_version_check($preempt, [], 'https://example.com/some-check/');
+
+        $this->assertFalse($result, 'A non-wordpress.org host must pass the original $preempt value through.');
     }
 }
