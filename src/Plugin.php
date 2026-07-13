@@ -135,6 +135,7 @@ use WPMCP\Tools\Multisite\Get_Network_Info;
 use WPMCP\Tools\Multisite\List_Network_Sites;
 use WPMCP\Tools\Multisite\Get_Site_Details;
 use WPMCP\Tools\Analytics\Get_Analytics_Connection_Status;
+use WPMCP\Tools\Analytics\Get_Analytics_Summary;
 use WPMCP\Tools\Identity\Create_Identity;
 use WPMCP\Tools\Identity\List_Identities;
 use WPMCP\Tools\Identity\Delete_Identity;
@@ -2324,6 +2325,7 @@ final class Plugin
     private function register_analytics_abilities(Registrar $registrar): void
     {
         $get_connection_status = new Get_Analytics_Connection_Status();
+        $get_analytics_summary = new Get_Analytics_Summary();
 
         $registrar->register(new Ability(
             'wpmcp/get-analytics-connection-status',
@@ -2334,6 +2336,23 @@ final class Plugin
                 'properties' => [],
             ],
             [$get_connection_status, 'handle'],
+            'manage_options',
+            'analytics',
+            'read'
+        ));
+
+        $registrar->register(new Ability(
+            'wpmcp/get-analytics-summary',
+            'free',
+            'Read-only sessions/users/pageviews summary over a date range (Y-m-d, defaulting to a trailing 28-day window ending yesterday) via the connected analytics provider. Returns an error when no provider is connected',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'start_date' => [ 'type' => 'string' ],
+                    'end_date'   => [ 'type' => 'string' ],
+                ],
+            ],
+            [$get_analytics_summary, 'handle'],
             'manage_options',
             'analytics',
             'read'
