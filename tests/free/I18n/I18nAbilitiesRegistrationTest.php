@@ -15,6 +15,7 @@ class I18nAbilitiesRegistrationTest extends \WP_UnitTestCase
     private const TOOLS = [
         'wpmcp/list-languages',
         'wpmcp/get-post-translations',
+        'wpmcp/set-post-language',
     ];
 
     public function test_tools_are_registered_when_an_i18n_plugin_is_active(): void

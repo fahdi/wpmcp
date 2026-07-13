@@ -52,6 +52,7 @@ use WPMCP\Tools\SEO\SEO_Adapter;
 use WPMCP\Tools\I18n\I18n_Adapter;
 use WPMCP\Tools\I18n\List_Languages;
 use WPMCP\Tools\I18n\Get_Post_Translations;
+use WPMCP\Tools\I18n\Set_Post_Language;
 use WPMCP\Tools\Linking\Find_Orphan_Posts;
 use WPMCP\Tools\Linking\Suggest_Internal_Links;
 use WPMCP\Tools\Linking\Get_Link_Map;
@@ -2873,6 +2874,7 @@ final class Plugin
 
         $list_languages         = new List_Languages();
         $get_post_translations  = new Get_Post_Translations();
+        $set_post_language      = new Set_Post_Language();
 
         $registrar->register(new Ability(
             'wpmcp/list-languages',
@@ -2902,6 +2904,24 @@ final class Plugin
             'edit_posts',
             'translation',
             'read'
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/set-post-language',
+            'free',
+            'Assign a post to a language (by code) via the active multilingual plugin (Polylang or WPML). For Polylang the language is a term in the \'language\' taxonomy, so this is snapshotted via object_type post and rollback-operation restores the prior language assignment exactly',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'post_id'    => [ 'type' => 'integer' ],
+                    'language'   => [ 'type' => 'string' ],
+                    'session_id' => [ 'type' => 'string' ],
+                ],
+                'required'   => [ 'post_id', 'language' ],
+            ],
+            [$set_post_language, 'handle'],
+            'edit_posts',
+            'translation',
+            'update'
         ));
     }
 
