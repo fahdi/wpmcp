@@ -68,3 +68,25 @@ if ( ! function_exists( 'wpmcp_acf_active' ) ) {
 		return function_exists( 'get_field' ) || class_exists( 'ACF' );
 	}
 }
+
+if ( ! function_exists( 'wpmcp_seo_plugin' ) ) {
+	/**
+	 * Which SEO plugin (if any) is active in the current test run.
+	 *
+	 * Returns 'yoast', 'rankmath', or '' (none), mirroring the detection the
+	 * SEO adapter itself uses so tests can gate on the same signal the tool
+	 * code gates on. Yoast is checked first: on a site running both plugins
+	 * (not expected in the test harness, but possible), Yoast wins.
+	 */
+	function wpmcp_seo_plugin(): string {
+		if ( defined( 'WPSEO_VERSION' ) || class_exists( 'WPSEO_Options' ) ) {
+			return 'yoast';
+		}
+
+		if ( class_exists( 'RankMath' ) ) {
+			return 'rankmath';
+		}
+
+		return '';
+	}
+}
