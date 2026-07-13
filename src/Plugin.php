@@ -49,6 +49,8 @@ use WPMCP\Tools\SEO\Get_SEO_Status;
 use WPMCP\Tools\SEO\Get_SEO_Meta;
 use WPMCP\Tools\SEO\Update_SEO_Meta;
 use WPMCP\Tools\SEO\SEO_Adapter;
+use WPMCP\Tools\I18n\I18n_Adapter;
+use WPMCP\Tools\I18n\List_Languages;
 use WPMCP\Tools\Linking\Find_Orphan_Posts;
 use WPMCP\Tools\Linking\Suggest_Internal_Links;
 use WPMCP\Tools\Linking\Get_Link_Map;
@@ -1393,6 +1395,7 @@ final class Plugin
         $this->register_elementor_abilities($registrar);
         $this->register_acf_abilities($registrar);
         $this->register_seo_abilities($registrar);
+        $this->register_i18n_abilities($registrar);
         $this->register_linking_abilities($registrar);
         $this->register_meta_abilities($registrar);
         $this->register_diagnostics_abilities($registrar);
@@ -2847,6 +2850,40 @@ final class Plugin
             'edit_posts',
             'seo',
             'update'
+        ));
+    }
+
+    /**
+     * Register the multilingual (i18n) tools as free-tier abilities.
+     *
+     * All four are registered only when I18n_Adapter detects an active
+     * multilingual plugin (Polylang or WPML), following the same
+     * conditional-registration pattern as the ACF and SEO tool groups:
+     * neither plugin has a free/pro split of its own to key off, so plugin
+     * absence is the only signal, and skipping keeps these tools out of the
+     * catalog on sites running no multilingual plugin. They share the
+     * 'translation' domain.
+     */
+    private function register_i18n_abilities(Registrar $registrar): void
+    {
+        if ('' === I18n_Adapter::active_plugin()) {
+            return;
+        }
+
+        $list_languages = new List_Languages();
+
+        $registrar->register(new Ability(
+            'wpmcp/list-languages',
+            'free',
+            'List the site\'s configured languages (code, human-readable name, and which is the default) via the active multilingual plugin (Polylang or WPML)',
+            [
+                'type'       => 'object',
+                'properties' => [],
+            ],
+            [$list_languages, 'handle'],
+            'edit_posts',
+            'translation',
+            'read'
         ));
     }
 
