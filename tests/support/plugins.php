@@ -69,6 +69,28 @@ if ( ! function_exists( 'wpmcp_acf_active' ) ) {
 	}
 }
 
+if ( ! function_exists( 'wpmcp_i18n_plugin' ) ) {
+	/**
+	 * Which multilingual plugin (if any) is active in the current test run.
+	 *
+	 * Returns 'polylang', 'wpml', or '' (none), mirroring the detection the
+	 * i18n adapter itself uses so tests can gate on the same signal the tool
+	 * code gates on. Polylang is checked first: on a site running both
+	 * plugins (not expected in the test harness, but possible), Polylang wins.
+	 */
+	function wpmcp_i18n_plugin(): string {
+		if ( function_exists( 'pll_the_languages' ) || defined( 'POLYLANG_VERSION' ) ) {
+			return 'polylang';
+		}
+
+		if ( defined( 'ICL_SITEPRESS_VERSION' ) ) {
+			return 'wpml';
+		}
+
+		return '';
+	}
+}
+
 if ( ! function_exists( 'wpmcp_seo_plugin' ) ) {
 	/**
 	 * Which SEO plugin (if any) is active in the current test run.

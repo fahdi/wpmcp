@@ -21,6 +21,7 @@ tests_add_filter( 'muplugins_loaded', function () {
     wpmcp_maybe_require_plugin( 'woocommerce/woocommerce.php' );
     wpmcp_maybe_require_plugin( 'advanced-custom-fields/acf.php' );
     wpmcp_maybe_require_plugin( 'wordpress-seo/wp-seo.php' );
+    wpmcp_maybe_require_plugin( 'polylang/polylang.php' );
 } );
 
 // WooCommerce needs its install routine to run against the test DB so its custom
