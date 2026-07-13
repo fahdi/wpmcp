@@ -121,4 +121,57 @@ class GovernanceTest extends \WP_UnitTestCase
 
         $this->assertTrue(Governance::is_ability_enabled($ability));
     }
+
+    public function test_stored_operation_toggle_disables_all_deletes(): void
+    {
+        $ability = $this->ability('wpmcp/delete-post', 'content', 'delete');
+
+        Governance::set_operation_toggle('delete', false);
+
+        $this->assertFalse(Governance::is_ability_enabled($ability));
+    }
+
+    public function test_stored_operation_toggle_does_not_affect_reads(): void
+    {
+        $ability = $this->ability('wpmcp/get-post', 'content', 'read');
+
+        Governance::set_operation_toggle('delete', false);
+
+        $this->assertTrue(Governance::is_ability_enabled($ability));
+    }
+
+    public function test_stored_enable_toggle_is_a_no_op_and_never_overrides_a_domain_disable(): void
+    {
+        $ability = $this->ability('wpmcp/delete-rows', 'database', 'delete');
+
+        // Explicit per-ability "enabled" cannot force the ability back on
+        // once a broader (domain) layer has disabled it.
+        Governance::set_ability_toggle('wpmcp/delete-rows', true);
+        Governance::set_domain_toggle('database', false);
+
+        $this->assertFalse(Governance::is_ability_enabled($ability));
+    }
+
+    public function test_stored_enable_toggle_composes_with_a_simultaneously_disabling_filter(): void
+    {
+        $ability = $this->ability('wpmcp/delete-post', 'content', 'delete');
+
+        Governance::set_ability_toggle('wpmcp/delete-post', true);
+        add_filter('wpmcp_operation_enabled', function (bool $enabled, string $operation) {
+            return 'delete' === $operation ? false : $enabled;
+        }, 10, 2);
+
+        $this->assertFalse(Governance::is_ability_enabled($ability));
+
+        remove_all_filters('wpmcp_operation_enabled');
+    }
+
+    public function test_stored_enable_toggle_keeps_an_otherwise_enabled_ability_enabled(): void
+    {
+        $ability = $this->ability('wpmcp/get-post');
+
+        Governance::set_ability_toggle('wpmcp/get-post', true);
+
+        $this->assertTrue(Governance::is_ability_enabled($ability));
+    }
 }
