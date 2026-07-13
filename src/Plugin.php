@@ -130,6 +130,7 @@ use WPMCP\Tools\Backup\Run_Backup_Job;
 use WPMCP\Tools\Governance\Get_Governance_Settings;
 use WPMCP\Tools\Governance\Update_Governance_Settings;
 use WPMCP\Tools\Governance\List_Governance_Audit_Log;
+use WPMCP\Tools\Multisite\Is_Multisite;
 use WPMCP\Tools\Identity\Create_Identity;
 use WPMCP\Tools\Identity\List_Identities;
 use WPMCP\Tools\Identity\Delete_Identity;
@@ -1430,6 +1431,7 @@ final class Plugin
         $this->register_code_abilities($registrar);
         $this->register_connect_abilities($registrar);
         $this->register_governance_abilities($registrar);
+        $this->register_multisite_abilities($registrar);
     }
 
     /**
@@ -2171,6 +2173,58 @@ final class Plugin
             'manage_options',
             'governance',
             'delete'
+        ));
+    }
+
+    /**
+     * Register the multisite/network-introspection tools as free-tier
+     * abilities (parity gap tracked in issue #35).
+     *
+     * This tool group is READ-ONLY network introspection plus honest
+     * flagging when a tool is called outside a network. Fleet-management
+     * writes (create/delete/archive/activate a site) are explicitly OUT OF
+     * SCOPE: those operations are not covered by the snapshot/rollback
+     * safety model (Safe_Mutation understands single-site content, options,
+     * and postmeta, not whole-site lifecycle events), and exposing them here
+     * would violate the product's "nothing unrecoverable" promise. If fleet
+     * writes are ever added, they need their own safety story first, not a
+     * bolt-on to this read-only group.
+     *
+     * is-multisite is registered unconditionally: it is the tool a caller
+     * uses to discover whether a network exists at all, so it must be
+     * reachable even on a single-site install (compare get-seo-status, which
+     * is also always registered so it can report "no plugin active"). The
+     * other three tools (get-network-info, list-network-sites,
+     * get-site-details) are gated behind is_multisite(), following the same
+     * conditional-registration pattern as the ACF/SEO/i18n tool groups:
+     * WordPress's own multisite flag is the signal, and skipping
+     * registration entirely keeps them out of the catalog on single-site
+     * installs rather than registering tools that would only ever return a
+     * "not a network" error.
+     *
+     * Gated at manage_network (WordPress's network-admin capability),
+     * falling back to manage_options: manage_network does not exist as a
+     * meaningful capability on a single-site install (current_user_can()
+     * against it is effectively always false there), so manage_options keeps
+     * these usable in that context while still requiring the equivalent
+     * network-admin capability on an actual multisite install.
+     */
+    private function register_multisite_abilities(Registrar $registrar): void
+    {
+        $is_multisite = new Is_Multisite();
+
+        $registrar->register(new Ability(
+            'wpmcp/is-multisite',
+            'free',
+            'Report whether this WordPress install is part of a multisite network. Always registered, even on single-site installs, so a caller can discover network status before using the rest of the multisite tool group',
+            [
+                'type'       => 'object',
+                'properties' => [],
+            ],
+            [$is_multisite, 'handle'],
+            'edit_posts',
+            'multisite',
+            'read'
         ));
     }
 
