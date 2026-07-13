@@ -7,6 +7,7 @@ namespace WPMCP;
 use WPMCP\Admin\Audit_Log_Page;
 use WPMCP\Admin\History_Page;
 use WPMCP\Admin\Restore_Controller;
+use WPMCP\Maintenance\Maintenance_Guard;
 use WPMCP\MCP\Ability;
 use WPMCP\MCP\Registrar;
 use WPMCP\Tools\Get_Page;
@@ -153,6 +154,11 @@ final class Plugin
             }
             add_action('admin_menu', [$this, 'register_admin_menu']);
             add_action('wp_ajax_wpmcp_restore', [new Restore_Controller(), 'handle']);
+            // Front-end maintenance-mode enforcement. template_redirect runs after
+            // WordPress has resolved the query but before a template is loaded, and
+            // does not fire for wp-admin or REST requests, so authenticated capable
+            // users, wp-admin, and the REST/MCP endpoints are never affected by it.
+            add_action('template_redirect', [new Maintenance_Guard(), 'enforce']);
         }
     }
 
