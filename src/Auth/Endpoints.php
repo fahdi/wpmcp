@@ -30,6 +30,12 @@ if (! defined('ABSPATH')) {
  * design, per RFC 7591; authorize requires a logged-in WP user, checked
  * inside Authorization_Grant; token exchange is validated entirely by the
  * presented code/verifier, checked inside Token_Grant).
+ *
+ * See .superpowers/sdd/issue-43-report.md for the full architecture writeup,
+ * including the precise scope boundary: no interactive consent-screen UI, no
+ * refresh tokens, no revocation endpoint, and no scope-to-ability
+ * enforcement yet (Bearer_Auth resolves identity only; a valid token grants
+ * exactly the underlying WP user's normal capabilities).
  */
 class Endpoints
 {
