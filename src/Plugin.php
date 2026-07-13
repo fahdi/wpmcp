@@ -22,6 +22,7 @@ use WPMCP\Tools\Structure\List_Shortcodes;
 use WPMCP\Tools\Structure\Render_Shortcode;
 use WPMCP\Tools\Structure\List_Sidebars;
 use WPMCP\Tools\Structure\List_Sidebar_Widgets;
+use WPMCP\Tools\Export\Export_Content;
 use WPMCP\MCP\Ability;
 use WPMCP\MCP\Registrar;
 use WPMCP\Tools\Get_Page;
@@ -1346,6 +1347,7 @@ final class Plugin
         $this->register_rest_abilities($registrar);
         $this->register_block_abilities($registrar);
         $this->register_structure_abilities($registrar);
+        $this->register_export_abilities($registrar);
     }
 
     /**
@@ -1761,6 +1763,38 @@ final class Plugin
             [$list_sidebar_widgets, 'handle'],
             'edit_posts',
             'structure',
+            'read'
+        ));
+    }
+
+    /**
+     * Register the content export/import tools as free-tier abilities
+     * (parity gap tracked in issue #40). Gated at manage_options: a WXR
+     * export can contain the full text of every post (including private and
+     * draft content), so it warrants the same capability already used for
+     * other site-wide read/write tools like get-settings and update-plugin.
+     */
+    private function register_export_abilities(Registrar $registrar): void
+    {
+        $export_content = new Export_Content();
+
+        $registrar->register(new Ability(
+            'wpmcp/export-content',
+            'free',
+            'Generate a WordPress eXtended RSS (WXR) export of site content via the native WordPress exporter (export_wp()). Optional content (post type: all/post/page/attachment/a custom post type), author, start_date, end_date, and status narrow what is included. Writes the XML to a protected directory under uploads and returns the file path, size, and item count. Read-only: does not mutate the site. WordPress\'s own export_wp() can only be safely called once per PHP process (a core limitation, not specific to this tool), so a second call in the same long-lived process is refused with a clear message rather than fataling',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'content'    => [ 'type' => 'string' ],
+                    'author'     => [ 'type' => 'integer' ],
+                    'start_date' => [ 'type' => 'string' ],
+                    'end_date'   => [ 'type' => 'string' ],
+                    'status'     => [ 'type' => 'string' ],
+                ],
+            ],
+            [$export_content, 'handle'],
+            'manage_options',
+            'export',
             'read'
         ));
     }
