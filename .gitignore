@@ -1,4 +1,5 @@
 /vendor/
+CLAUDE.md
 /node_modules/
 .phpunit.result.cache
 /.playwright-mcp/
