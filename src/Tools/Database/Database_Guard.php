@@ -303,13 +303,29 @@ class Database_Guard
         $conditions = [];
         $values     = [];
         foreach ($where as $column => $value) {
-            $conditions[] = '`' . str_replace('`', '', (string) $column) . '` = %s';
+            $quoted = '`' . str_replace('`', '', (string) $column) . '`';
+            // Match $wpdb->update()/delete() semantics exactly: a null WHERE
+            // value means "IS NULL" there, so it must here too. Rendering it
+            // as "= %s" would prepare to "= ''", capturing NOTHING while the
+            // mutation touches the NULL rows — a silently incomplete
+            // before-image behind a recoverable:true promise.
+            if (null === $value) {
+                $conditions[] = $quoted . ' IS NULL';
+                continue;
+            }
+            $conditions[] = $quoted . ' = %s';
             $values[]     = $value;
         }
 
-        $sql  = 'SELECT * FROM `' . str_replace('`', '', $table) . '` WHERE '
+        $sql = 'SELECT * FROM `' . str_replace('`', '', $table) . '` WHERE '
             . implode(' AND ', $conditions) . ' LIMIT ' . max(1, (int) ($limit ?? self::BEFORE_IMAGE_CAP));
-        $rows = $wpdb->get_results($wpdb->prepare($sql, $values), ARRAY_A);
+        // An all-null WHERE produces no placeholders, and wpdb::prepare()
+        // refuses a placeholder-less query; the SQL is then already fully
+        // static (IS NULL conditions plus validated identifiers) and safe.
+        if ([] !== $values) {
+            $sql = $wpdb->prepare($sql, $values);
+        }
+        $rows = $wpdb->get_results($sql, ARRAY_A);
 
         return is_array($rows) ? $rows : [];
     }

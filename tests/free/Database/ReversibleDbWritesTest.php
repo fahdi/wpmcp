@@ -60,6 +60,8 @@ class ReversibleDbWritesTest extends \WP_UnitTestCase
     {
         parent::setUp();
         add_filter('wpmcp_enable_db_writes', '__return_true');
+        // Database tools and db_rows restores are manage_options-gated.
+        wp_set_current_user(self::factory()->user->create(['role' => 'administrator']));
     }
 
     /** Insert a row into the PK scratch table and return its id. */
@@ -200,6 +202,33 @@ class ReversibleDbWritesTest extends \WP_UnitTestCase
         // their captured ids, not fresh auto-increment ones.
         $this->assertSame('a', $this->row($id_a)['val']);
         $this->assertSame('b', $this->row($id_b)['val']);
+    }
+
+    /**
+     * $wpdb->delete()/update() treat a null WHERE value as "IS NULL", so the
+     * before-image capture must too; rendering it as "= ''" (the naive %s
+     * prepare) would capture NOTHING while the delete removes the NULL rows,
+     * silently breaking the recoverable promise.
+     */
+    public function test_null_where_value_captures_and_restores_null_rows(): void
+    {
+        $id = $this->seed('nullwhere', null);
+
+        $result = (new Delete_Rows())->handle([
+            'table'   => self::$table,
+            'where'   => ['name' => 'nullwhere', 'val' => null],
+            'confirm' => true,
+        ]);
+
+        $this->assertTrue($result['recoverable']);
+        $this->assertSame(1, $result['affected']);
+        $this->assertCount(1, $result['before_image'], 'The IS NULL row must be captured');
+        $this->assertNull($this->row($id));
+
+        $this->assertTrue(Rollback_Service::restore_operation($result['operation_id']));
+        $restored = $this->row($id);
+        $this->assertSame('nullwhere', $restored['name']);
+        $this->assertNull($restored['val']);
     }
 
     // -----------------------------------------------------------------

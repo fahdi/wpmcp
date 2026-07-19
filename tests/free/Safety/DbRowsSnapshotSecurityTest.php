@@ -17,6 +17,32 @@ use WPMCP\Safety\Rollback_Service;
  */
 class DbRowsSnapshotSecurityTest extends \WP_UnitTestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+        // Raw-row restores are capability-gated like the database tools that
+        // create them; run as an administrator so each refusal below is
+        // exercised for its own reason, not the capability gate's.
+        wp_set_current_user(self::factory()->user->create(['role' => 'administrator']));
+    }
+
+    /**
+     * Every database tool requires manage_options, so the restore path —
+     * which performs the same class of raw table writes — must too. Without
+     * this, an edit_posts-level caller could mutate raw tables by replaying
+     * an administrator's operation through rollback-operation (gated at
+     * edit_posts, as it must stay for content rollbacks).
+     */
+    public function test_refuses_restore_for_caller_without_manage_options(): void
+    {
+        wp_set_current_user(self::factory()->user->create(['role' => 'editor']));
+
+        $this->expectException(Mutation_Failed::class);
+        Rollback_Service::apply_snapshot($this->forged([
+            'rows' => [['option_id' => '1', 'option_name' => 'x', 'option_value' => 'y', 'autoload' => 'yes']],
+        ]));
+    }
+
     private function forged(array $overrides): array
     {
         global $wpdb;
@@ -82,6 +108,7 @@ class DbRowsSnapshotSecurityTest extends \WP_UnitTestCase
 
     public function test_empty_rows_snapshot_is_a_safe_no_op(): void
     {
+        Rollback_Service::take_warnings(); // drain residue from earlier direct apply_snapshot() calls
         Rollback_Service::apply_snapshot($this->forged(['rows' => []]));
         $this->assertSame([], Rollback_Service::take_warnings());
     }

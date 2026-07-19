@@ -463,6 +463,17 @@ class Rollback_Service
     {
         global $wpdb;
 
+        // Every database tool is gated at manage_options (raw table access is
+        // phpMyAdmin-level power), but the rollback tools are — and must stay —
+        // edit_posts, so lower-privileged identities can undo their own content
+        // writes. Without this check, an edit_posts caller could mutate raw
+        // tables by replaying an administrator's operation through
+        // rollback-operation. Enforce the database tools' own gate here, on
+        // the one snapshot type whose restore IS a raw table write.
+        if (! current_user_can('manage_options')) {
+            throw new Mutation_Failed('Rollback refused: restoring raw table rows requires the manage_options capability.');
+        }
+
         $data = (array) ($snapshot['data'] ?? []);
         $rows = (array) ($data['rows'] ?? []);
         if ([] === $rows) {
