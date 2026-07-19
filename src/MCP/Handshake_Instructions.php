@@ -74,7 +74,13 @@ class Handshake_Instructions
      */
     public function auto_summary(): string
     {
-        $name = $this->clamp(trim(wp_strip_all_tags((string) get_bloginfo('name'))), self::MAX_SITE_NAME_LENGTH);
+        // get_bloginfo() entity-encodes for display, so decode BEFORE
+        // stripping: otherwise "&lt;script&gt;alert(1)&lt;/script&gt;"
+        // survives wp_strip_all_tags() and the script body leaks into the
+        // handshake. Decoding first lets the strip remove the tag pair AND
+        // its contents.
+        $name = wp_specialchars_decode((string) get_bloginfo('name'), ENT_QUOTES);
+        $name = $this->clamp(trim(wp_strip_all_tags($name, true)), self::MAX_SITE_NAME_LENGTH);
 
         return sprintf(
             'You are connected to the WordPress site "%s" via wpmcp. Active builder: %s. %s',
