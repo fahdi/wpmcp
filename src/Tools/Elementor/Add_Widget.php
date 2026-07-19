@@ -2,38 +2,32 @@
 
 namespace WPMCP\Tools\Elementor;
 
-use WPMCP\Safety\Safe_Mutation;
-
 if (! defined('ABSPATH')) {
     exit;
 }
 
 /**
- * Add a widget element (given a widget_type and optional settings) as a
- * child of a specified parent element in a page's `_elementor_data`. The
- * widget_type is validated against Elementor's own widgets_manager before
- * anything is written, so an unknown type never reaches the page data.
- * Reads `_elementor_data`, mutates the tree, and writes it back through
- * Safe_Mutation::run() with object_type='post': `_elementor_data` is
- * ordinary postmeta on the page, so the existing post snapshot captures and
- * restores it, making this edit undoable with no change to the safety core.
+ * Add a widget element to a page's `_elementor_data`, under a parent
+ * element or at the top level, at an optional position (issue #59).
+ *
+ * Any type in the curated catalog (Widget_Catalog) is accepted with typed
+ * `params`, which are validated (unknown params, missing required params,
+ * enum and type violations are refused before anything is written) and then
+ * built into Elementor's real settings shapes. Non-cataloged registered
+ * widgets remain insertable through the raw `settings` escape hatch; when
+ * both are given, built params win over raw settings key-by-key. Cataloged
+ * widgets that need Elementor Pro refuse cleanly when the real Pro widget is
+ * not installed — free Elementor's promotion placeholders never count.
+ *
+ * Writes go through the Element_Tree engine (issue #58): `expected_hash`
+ * concurrency guard, snapshot-first Safe_Mutation write with verify and
+ * automatic rollback, and a fresh data_hash in the response for chaining.
  */
 class Add_Widget
 {
     public function handle(array $args)
     {
-        $post_id     = (int) ($args['post_id'] ?? 0);
-        $parent_id   = (string) ($args['parent_id'] ?? '');
         $widget_type = (string) ($args['widget_type'] ?? '');
-        $settings    = is_array($args['settings'] ?? null) ? $args['settings'] : [];
-
-        if ($post_id <= 0) {
-            return new \WP_Error('missing_post_id', 'A post_id is required.');
-        }
-
-        if ('' === $parent_id) {
-            return new \WP_Error('missing_parent_id', 'A parent_id is required.');
-        }
 
         if ('' === $widget_type) {
             return new \WP_Error('missing_widget_type', 'A widget_type is required.');
@@ -43,42 +37,103 @@ class Add_Widget
             return new \WP_Error('elementor_not_active', 'Elementor is not active on this site.');
         }
 
-        $widget = \Elementor\Plugin::instance()->widgets_manager->get_widget_types($widget_type);
+        $read = Element_Tree::read_for_edit($args);
+        if (is_wp_error($read)) {
+            return $read;
+        }
+        [$post_id, $elements] = $read;
 
-        if (null === $widget) {
-            return new \WP_Error('invalid_widget_type', "Unknown Elementor widget type '{$widget_type}'.");
+        $settings = $this->resolve_settings($widget_type, $args);
+        if (is_wp_error($settings)) {
+            return $settings;
         }
 
-        $elements = Elementor_Page_Data::get($post_id);
+        $parent_id = (string) ($args['parent_id'] ?? '');
+        $position  = isset($args['position']) ? (int) $args['position'] : null;
 
-        if (null === Elementor_Page_Data::find($elements, $parent_id)) {
-            return new \WP_Error('parent_not_found', "No element found with id '{$parent_id}'.");
+        if ('' !== $parent_id) {
+            $parent = Elementor_Page_Data::find($elements, $parent_id);
+            if (null === $parent) {
+                return new \WP_Error('parent_not_found', "No element found with id '{$parent_id}'.");
+            }
+            if ('widget' === ($parent['elType'] ?? '')) {
+                return new \WP_Error(
+                    'invalid_parent',
+                    "Element '{$parent_id}' is a widget; widgets cannot contain other widgets."
+                );
+            }
         }
 
         $element_id = Element_Id::generate();
+        $element    = [
+            'id'         => $element_id,
+            'elType'     => 'widget',
+            'widgetType' => $widget_type,
+            'settings'   => $settings,
+            'elements'   => [],
+        ];
 
-        $out = Safe_Mutation::run(
-            [
-                'object_type' => 'post',
-                'object_id'   => $post_id,
-                'session_id'  => (string) ($args['session_id'] ?? 'default'),
-                'tool_name'   => 'add-widget',
-                'args'        => $args,
-            ],
-            function () use ($post_id, $parent_id, $widget_type, $settings, $element_id) {
-                $elements = Elementor_Page_Data::get($post_id);
-                Elementor_Page_Data::insert($elements, $parent_id, [
-                    'id'         => $element_id,
-                    'elType'     => 'widget',
-                    'widgetType' => $widget_type,
-                    'settings'   => $settings,
-                    'elements'   => [],
-                ]);
-                Elementor_Page_Data::save($post_id, $elements);
-                return true;
+        Element_Tree::insert_at($elements, $parent_id, $element, $position);
+
+        $out = Element_Tree::write($post_id, $elements, 'add-widget', $args);
+        if (is_wp_error($out)) {
+            return $out;
+        }
+
+        return $out + ['element_id' => $element_id, 'element' => $element];
+    }
+
+    /**
+     * Validate availability and build the settings array from curated
+     * params and/or raw settings.
+     *
+     * @return array|\WP_Error
+     */
+    private function resolve_settings(string $widget_type, array $args)
+    {
+        $params   = is_array($args['params'] ?? null) ? $args['params'] : [];
+        $raw      = is_array($args['settings'] ?? null) ? $args['settings'] : [];
+        $entry    = Widget_Catalog::get($widget_type);
+        $installed = Widget_Catalog::installed_widget($widget_type);
+
+        if (null === $installed) {
+            if (null !== $entry && 'elementor-pro' === $entry['requires']) {
+                return new \WP_Error(
+                    'requires_elementor_pro',
+                    "Widget type '{$widget_type}' requires Elementor Pro, which is not installed on this site."
+                );
             }
-        );
+            return new \WP_Error('invalid_widget_type', "Unknown Elementor widget type '{$widget_type}'.");
+        }
 
-        return ['operation_id' => $out['operation_id'], 'post_id' => $post_id, 'element_id' => $element_id];
+        if ([] !== $params) {
+            if (null === $entry) {
+                return new \WP_Error(
+                    'not_cataloged',
+                    "Widget type '{$widget_type}' is not in the curated catalog; pass raw `settings` instead of `params` "
+                    . '(get-widget-schema with full:true shows its control stack).'
+                );
+            }
+
+            $error = Widget_Catalog::validate($widget_type, $params);
+            if (null !== $error) {
+                return $error;
+            }
+
+            return array_merge($raw, Widget_Catalog::build_settings($widget_type, $params));
+        }
+
+        if (null !== $entry && [] === $raw) {
+            // Cataloged type with neither params nor raw settings: enforce
+            // required params so a bare insert cannot produce a widget the
+            // builder renders empty. (Raw settings are trusted to satisfy
+            // requirements by control name.)
+            $error = Widget_Catalog::validate($widget_type, []);
+            if (null !== $error) {
+                return $error;
+            }
+        }
+
+        return $raw;
     }
 }

@@ -48,6 +48,12 @@ class ElementorInputTest extends \WP_UnitTestCase
         return $post_id;
     }
 
+    private function data_hash(int $post_id): string
+    {
+        $raw = get_post_meta($post_id, '_elementor_data', true);
+        return hash('sha256', is_string($raw) ? $raw : '');
+    }
+
     public function test_add_widget_rejects_missing_post_id(): void
     {
         $result = (new Add_Widget())->handle(['parent_id' => 'sect001', 'widget_type' => 'heading']);
@@ -55,12 +61,12 @@ class ElementorInputTest extends \WP_UnitTestCase
         $this->assertSame('missing_post_id', $result->get_error_code());
     }
 
-    public function test_add_widget_rejects_missing_parent_id(): void
+    public function test_add_widget_rejects_missing_expected_hash(): void
     {
         $post_id = $this->make_page();
         $result  = (new Add_Widget())->handle(['post_id' => $post_id, 'widget_type' => 'heading']);
         $this->assertInstanceOf(\WP_Error::class, $result);
-        $this->assertSame('missing_parent_id', $result->get_error_code());
+        $this->assertSame('missing_expected_hash', $result->get_error_code());
     }
 
     public function test_add_widget_rejects_missing_widget_type(): void
@@ -75,9 +81,10 @@ class ElementorInputTest extends \WP_UnitTestCase
     {
         $post_id = $this->make_page();
         $result  = (new Add_Widget())->handle([
-            'post_id'     => $post_id,
-            'parent_id'   => 'sect001',
-            'widget_type' => 'this-widget-type-does-not-exist',
+            'post_id'       => $post_id,
+            'expected_hash' => $this->data_hash($post_id),
+            'parent_id'     => 'sect001',
+            'widget_type'   => 'this-widget-type-does-not-exist',
         ]);
         $this->assertInstanceOf(\WP_Error::class, $result);
         $this->assertSame('invalid_widget_type', $result->get_error_code());
@@ -87,9 +94,11 @@ class ElementorInputTest extends \WP_UnitTestCase
     {
         $post_id = $this->make_page();
         $result  = (new Add_Widget())->handle([
-            'post_id'     => $post_id,
-            'parent_id'   => 'does-not-exist',
-            'widget_type' => 'heading',
+            'post_id'       => $post_id,
+            'expected_hash' => $this->data_hash($post_id),
+            'parent_id'     => 'does-not-exist',
+            'widget_type'   => 'heading',
+            'params'        => ['title' => 'Hello'],
         ]);
         $this->assertInstanceOf(\WP_Error::class, $result);
         $this->assertSame('parent_not_found', $result->get_error_code());
