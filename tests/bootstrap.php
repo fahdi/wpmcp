@@ -24,6 +24,23 @@ tests_add_filter( 'muplugins_loaded', function () {
     wpmcp_maybe_require_plugin( 'polylang/polylang.php' );
 } );
 
+// Recreate the wpmcp snapshots table once per run, BEFORE any test
+// transaction starts. The table is otherwise created lazily by
+// Snapshot_Store::install() from individual tests' setUp(); when the FIRST
+// install of a run happens inside a test, MySQL's implicit DDL commit
+// silently ends that test's isolation transaction, and every row the test
+// writes afterwards is committed to the shared test database. The WP test
+// installer only resets core tables, so those leaked snapshot rows survive
+// across runs and poison count-based assertions (List_Operations,
+// Snapshot_Store CRUD) nondeterministically. With the table guaranteed to
+// exist here, every per-test install() call is a pure no-op and per-test
+// transactions stay intact.
+tests_add_filter( 'muplugins_loaded', function () {
+    global $wpdb;
+    $wpdb->query( "DROP TABLE IF EXISTS {$wpdb->prefix}wpmcp_snapshots" );
+    \WPMCP\Safety\Snapshot_Store::install();
+}, 20 );
+
 // WooCommerce needs its install routine to run against the test DB so its custom
 // tables exist and WC() is usable. Run it once WooCommerce has loaded and WP is
 // initialized, guarded so it is a no-op when WooCommerce is absent.
