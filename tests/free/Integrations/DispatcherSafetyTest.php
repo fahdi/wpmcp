@@ -47,7 +47,7 @@ class DispatcherSafetyTest extends \WP_UnitTestCase
         $row = Snapshot_Store::get_by_operation($out['operation_id']);
         $this->assertNotNull($row);
         $this->assertSame('ORIGINAL', $row['snapshot']['data']['post']['post_content']);
-        $this->assertSame('testint-write', $row['tool']);
+        $this->assertSame('testint-write', $row['tool_name']);
     }
 
     public function test_dispatched_write_is_restorable_via_rollback_operation(): void

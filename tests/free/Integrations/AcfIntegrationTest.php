@@ -62,6 +62,21 @@ class AcfIntegrationTest extends \WP_UnitTestCase
         return $id;
     }
 
+    /**
+     * ACF caches field values in an in-request store (acf_get_store('values'))
+     * that does not observe the direct postmeta writes a rollback-operation
+     * performs. Reset it before reading a value that may have changed
+     * underneath ACF, mirroring UpdateFieldsTest.
+     */
+    private function freshField(string $selector, int $post_id)
+    {
+        $store = acf_get_store('values');
+        if ($store) {
+            $store->reset();
+        }
+        return get_field($selector, $post_id);
+    }
+
     private function withWritesEnabled(callable $fn)
     {
         add_filter('wpmcp_enable_acf_write', '__return_true');
@@ -134,7 +149,7 @@ class AcfIntegrationTest extends \WP_UnitTestCase
 
         (new Rollback_Operation())->handle([ 'operation_id' => $out['operation_id'] ]);
 
-        $this->assertSame('before', get_field('wpmcp_dispatch_text', $post_id));
+        $this->assertSame('before', $this->freshField('wpmcp_dispatch_text', $post_id));
     }
 
     public function test_update_fields_rejects_malformed_args_before_any_write(): void
