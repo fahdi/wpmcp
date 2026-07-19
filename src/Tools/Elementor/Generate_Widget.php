@@ -10,8 +10,9 @@ if (! defined('ABSPATH')) {
 
 /**
  * Generate a valid Elementor widget element (id, elType='widget',
- * widgetType, and a real settings object) from a curated widget-type schema
- * (Widget_Schema) and insert it into a target post's `_elementor_data`, as a
+ * widgetType, and a real settings object) from the curated widget catalog
+ * (Widget_Catalog, issue #59 — any cataloged type, replacing the original
+ * 4-type limit) and insert it into a target post's `_elementor_data`, as a
  * child of a given parent element or at the top level when no parent_id is
  * given. Reads `_elementor_data`, mutates the tree, and writes it back
  * through Safe_Mutation::run() with object_type='post': `_elementor_data` is
@@ -41,14 +42,26 @@ class Generate_Widget
             return new \WP_Error('missing_widget_type', 'A widget_type is required.');
         }
 
-        if (! Widget_Schema::supports($widget_type)) {
-            return new \WP_Error('unknown_widget_type', "Unknown widget type '{$widget_type}'. Supported types: " . implode(', ', Widget_Schema::supported_types()) . '.');
+        if (! Widget_Catalog::has($widget_type)) {
+            return new \WP_Error(
+                'unknown_widget_type',
+                "Widget type '{$widget_type}' is not in the curated catalog; list-widgets shows every supported type."
+            );
         }
 
-        $missing = Widget_Schema::missing_required_keys($widget_type, $settings);
+        $entry = Widget_Catalog::get($widget_type);
 
-        if (! empty($missing)) {
-            return new \WP_Error('missing_required_setting', "Widget type '{$widget_type}' requires: " . implode(', ', $missing) . '.');
+        if ('elementor-pro' === $entry['requires'] && null === Widget_Catalog::installed_widget($widget_type)) {
+            return new \WP_Error(
+                'requires_elementor_pro',
+                "Widget type '{$widget_type}' requires Elementor Pro, which is not installed on this site."
+            );
+        }
+
+        $invalid = Widget_Catalog::validate($widget_type, $settings);
+
+        if (null !== $invalid) {
+            return $invalid;
         }
 
         if (! get_post($post_id)) {
@@ -65,7 +78,7 @@ class Generate_Widget
             return new \WP_Error('parent_not_found', "No element found with id '{$parent_id}'.");
         }
 
-        $built_settings = Widget_Schema::build_settings($widget_type, $settings);
+        $built_settings = Widget_Catalog::build_settings($widget_type, $settings);
         $element_id     = self::generate_id($seed, $elements);
         $element        = [
             'id'         => $element_id,

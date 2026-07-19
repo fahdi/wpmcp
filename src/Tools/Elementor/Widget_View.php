@@ -13,7 +13,7 @@ if (! defined('ABSPATH')) {
 class Widget_View
 {
     /**
-     * @return array{name: string, title: string, categories: array<int, string>, icon: string, tier: string}
+     * @return array{name: string, title: string, categories: array<int, string>, icon: string, tier: string, available: bool}
      */
     public static function summary(\Elementor\Widget_Base $widget): array
     {
@@ -23,18 +23,31 @@ class Widget_View
             'categories' => $widget->get_categories(),
             'icon'       => $widget->get_icon(),
             'tier'       => self::tier($widget),
+            'available'  => ! self::is_promotion($widget),
         ];
     }
 
     /**
      * Elementor Pro widgets are namespaced under ElementorPro\...; every
      * bundled Elementor (free) widget lives under the Elementor\ namespace.
-     * This is the same signal Elementor Pro itself relies on to distinguish
-     * its own widgets, so it holds regardless of how a given widget is wired.
+     * Free Elementor also registers PROMOTION placeholders under Pro widget
+     * names (Elementor\Modules\Promotions\...): those represent pro widgets
+     * that are not installed, so they report as 'pro' — never as free
+     * widgets a caller could insert.
      */
     public static function tier(\Elementor\Widget_Base $widget): string
     {
-        return 0 === strpos(get_class($widget), 'ElementorPro\\') ? 'pro' : 'free';
+        if (0 === strpos(get_class($widget), 'ElementorPro\\') || self::is_promotion($widget)) {
+            return 'pro';
+        }
+
+        return 'free';
+    }
+
+    /** Whether this registration is a Pro-promotion placeholder, not a real widget. */
+    public static function is_promotion(\Elementor\Widget_Base $widget): bool
+    {
+        return 0 === strpos(get_class($widget), 'Elementor\\Modules\\Promotions\\');
     }
 
     /**
