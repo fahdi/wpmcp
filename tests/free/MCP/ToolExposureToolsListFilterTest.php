@@ -205,4 +205,21 @@ class ToolExposureToolsListFilterTest extends \WP_UnitTestCase
 
         $this->assertSame('whatever', (new Tool_Exposure())->filter_tools_list('whatever'));
     }
+
+    public function test_a_throwing_foreign_dto_never_fatals_the_list_and_passes_through(): void
+    {
+        $this->compact();
+
+        $hostile = new class {
+            public function getName(): string
+            {
+                throw new \RuntimeException('boom');
+            }
+        };
+
+        $filtered = (new Tool_Exposure())->filter_tools_list([$hostile, $this->dto('wpmcp-get-page')]);
+
+        $this->assertCount(1, $filtered);
+        $this->assertSame($hostile, $filtered[0]);
+    }
 }

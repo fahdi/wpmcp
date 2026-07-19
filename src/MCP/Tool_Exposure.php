@@ -185,7 +185,13 @@ class Tool_Exposure
         }
         if (is_object($tool)) {
             if (method_exists($tool, 'getName')) {
-                $name = $tool->getName();
+                try {
+                    $name = $tool->getName();
+                } catch (\Throwable $e) {
+                    // A foreign DTO must never be able to fatal tools/list;
+                    // an unreadable entry simply passes through unfiltered.
+                    return null;
+                }
                 return is_string($name) ? $name : null;
             }
             if (isset($tool->name) && is_string($tool->name)) {
