@@ -31,7 +31,37 @@ class Snapshot
         if ('wc_order' === $object_type) {
             return self::capture_wc_order((int) $object_id);
         }
+        if ('db_rows' === $object_type) {
+            return self::capture_db_rows((string) $object_id);
+        }
         return self::capture_post($object_id);
+    }
+
+    /**
+     * Skeleton snapshot for a generic single-table row write (update-rows /
+     * delete-rows, issue #82). Unlike every other object type, the state to
+     * capture cannot be derived from ($object_type, $object_id) alone: the
+     * rows are selected by the tool's WHERE clause, and the tool has already
+     * fetched them (before-image) to decide recoverability. The tool
+     * therefore supplies the real payload via Safe_Mutation's additive
+     * 'extra_snapshot_data' seam, which merges into 'data' here:
+     *   table       string  validated real table name
+     *   operation   string  'update' | 'delete'
+     *   primary_key array   PK column names, in index order (never empty)
+     *   where       array   the tool call's equality WHERE (context)
+     *   set         array   update only: the applied column => value map,
+     *                       used for conflict detection at rollback time
+     *   rows        array   full before-image rows (SELECT *, capped)
+     * $object_id is the table name (a string), so Snapshot_Store persists 0
+     * in its BIGINT object_id column, exactly like 'option' snapshots.
+     */
+    private static function capture_db_rows(string $table): array
+    {
+        return [
+            'object_type' => 'db_rows',
+            'object_id'   => $table,
+            'data'        => [],
+        ];
     }
 
     /**

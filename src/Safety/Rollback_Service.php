@@ -6,14 +6,42 @@
 
 namespace WPMCP\Safety;
 
+use WPMCP\Tools\Database\Database_Guard;
+
 if (! defined('ABSPATH')) {
     exit;
 }
 
 class Rollback_Service
 {
+    /**
+     * Non-fatal findings from the most recent restore, currently only ever
+     * produced by the db_rows path's conflict detection (rows that changed,
+     * vanished, or were reclaimed since the operation being undone). A
+     * conflict is deliberately a WARNING, not a failure: rollback still
+     * restores the captured before-image (that is the promise), but the
+     * caller is told the ground shifted underneath it. Collected statically
+     * because apply_snapshot() is a void pipeline shared by callers that
+     * cannot thread a return value through (Safe_Mutation::restore).
+     */
+    private static array $warnings = [];
+
+    /** Return and clear the warnings accumulated by the most recent restore. */
+    public static function take_warnings(): array
+    {
+        $warnings       = self::$warnings;
+        self::$warnings = [];
+        return $warnings;
+    }
+
+    private static function warn(string $message): void
+    {
+        self::$warnings[] = $message;
+    }
+
     public static function restore_operation(string $operation_id): bool
     {
+        self::$warnings = [];
         $row = Snapshot_Store::get_by_operation($operation_id);
         if (! $row) {
             return false;
@@ -24,15 +52,37 @@ class Rollback_Service
 
     public static function restore_session(string $session_id): int
     {
-        $rows = Snapshot_Store::list_by_session($session_id); // newest first
-        $rows = array_reverse($rows); // oldest first, so we can unwind to the earliest
-
-        // Restore the OLDEST snapshot per object (its pre-session state).
-        $seen  = [];
+        self::$warnings = [];
+        $rows  = Snapshot_Store::list_by_session($session_id); // newest first
         $count = 0;
+
+        // Pass 1: db_rows snapshots, applied NEWEST-first, every one of them.
+        // Unlike the whole-object snapshots below, a db_rows snapshot covers
+        // only the rows its WHERE matched, so two operations in one session
+        // can capture PARTIALLY overlapping row sets. "Oldest snapshot per
+        // object" dedup is only correct when each snapshot captures the whole
+        // object; for partial captures the only correct unwind is to undo
+        // each operation in reverse chronological order, letting older
+        // before-images overwrite newer ones where they overlap.
+        $legacy = [];
         foreach ($rows as $r) {
             $snapshot = Snapshot::unserialize($r['before_blob']);
-            $key      = self::object_identity($snapshot);
+            if ('db_rows' === $snapshot['object_type']) {
+                self::apply_snapshot($snapshot);
+                $count++;
+                continue;
+            }
+            $legacy[] = $snapshot;
+        }
+
+        // Pass 2 (unchanged behavior): whole-object snapshots, oldest first,
+        // restoring the OLDEST snapshot per object (its pre-session state).
+        // Runs after the db_rows pass so that when both kinds touched the
+        // same underlying rows, the exact whole-object restore wins.
+        $legacy = array_reverse($legacy); // oldest first, so we can unwind to the earliest
+        $seen   = [];
+        foreach ($legacy as $snapshot) {
+            $key = self::object_identity($snapshot);
             if (isset($seen[ $key ])) {
                 $count++;
                 continue;
@@ -325,6 +375,11 @@ class Rollback_Service
             return;
         }
 
+        if ('db_rows' === $snapshot['object_type']) {
+            self::apply_db_rows_snapshot($snapshot);
+            return;
+        }
+
         if ('post' !== $snapshot['object_type']) {
             return;
         }
@@ -365,6 +420,160 @@ class Rollback_Service
         }
 
         self::restore_files($snapshot['data']['files'] ?? null);
+    }
+
+    /**
+     * Restore the exact before-image rows captured by update-rows /
+     * delete-rows (issue #82; snapshot shape documented at
+     * Snapshot::capture_db_rows()).
+     *
+     * THE ROLLBACK PATH ITSELF PERFORMS DB WRITES, so a forged or stale
+     * snapshot must never become a write primitive the write tools would
+     * refuse. Everything is re-validated against the LIVE database before a
+     * single row is touched:
+     *  - the table must still exist (Database_Guard::valid_table() resolves
+     *    the exact real name; table names cannot be parameterized);
+     *  - the table must not be protected (users/usermeta by default) — a
+     *    legitimate snapshot can never reference one, because the write
+     *    tools refuse protected tables before capturing anything;
+     *  - a non-empty primary key must be declared in the snapshot, and every
+     *    captured row must carry a non-null value for each PK column;
+     *  - every captured column name must exactly match a live column of the
+     *    table (closes both column-name injection — identifiers cannot be
+     *    parameterized — and silent schema drift: a dropped column means the
+     *    promised exact restore is impossible, so fail loudly instead).
+     * Any violation throws Mutation_Failed before any write happens.
+     *
+     * Per row, the restore is an upsert keyed on the primary key: if a row
+     * exists at the captured PK it is updated back to the captured values
+     * ($wpdb->update(), parameterized); if not, the full captured row —
+     * INCLUDING its original PK values — is reinserted ($wpdb->insert()),
+     * which is what preserves auto-increment ids across a delete + rollback.
+     * (Caveat: the table's auto-increment counter itself is not rewound, so
+     * ids handed out between the delete and the rollback are simply skipped.)
+     *
+     * Conflict detection compares the CURRENT row against what the operation
+     * left behind (before-image overlaid with the update's 'set' map, or
+     * absence for a delete). Any drift — a third-party edit, a vanished row,
+     * a reclaimed PK — is reported via warn() but does not stop the restore:
+     * the captured before-image always wins, matching the safety invariant
+     * that a restored object equals its pre-mutation state exactly.
+     */
+    private static function apply_db_rows_snapshot(array $snapshot): void
+    {
+        global $wpdb;
+
+        $data = (array) ($snapshot['data'] ?? []);
+        $rows = (array) ($data['rows'] ?? []);
+        if ([] === $rows) {
+            return; // Nothing was captured, so there is nothing to restore.
+        }
+
+        $table = \WPMCP\Tools\Database\Database_Guard::valid_table((string) ($data['table'] ?? ''));
+        if (is_wp_error($table)) {
+            throw new Mutation_Failed('Rollback refused: ' . $table->get_error_message());
+        }
+        if (\WPMCP\Tools\Database\Database_Guard::is_protected($table)) {
+            throw new Mutation_Failed("Rollback refused: table \"{$table}\" is protected.");
+        }
+
+        $primary_key = array_values(array_map('strval', (array) ($data['primary_key'] ?? [])));
+        if ([] === $primary_key) {
+            throw new Mutation_Failed('Rollback refused: db_rows snapshot has no primary key.');
+        }
+
+        $live_columns = \WPMCP\Tools\Database\Database_Guard::columns($table);
+        foreach ($primary_key as $column) {
+            if (! in_array($column, $live_columns, true)) {
+                throw new Mutation_Failed("Rollback refused: primary-key column \"{$column}\" is not a column of \"{$table}\".");
+            }
+        }
+
+        $operation = (string) ($data['operation'] ?? '');
+        $set       = (array) ($data['set'] ?? []);
+
+        foreach ($rows as $row) {
+            $row = (array) $row;
+
+            foreach (array_keys($row) as $column) {
+                if (! in_array((string) $column, $live_columns, true)) {
+                    throw new Mutation_Failed("Rollback refused: captured column \"{$column}\" is not a column of \"{$table}\".");
+                }
+            }
+
+            $where = [];
+            foreach ($primary_key as $column) {
+                if (! isset($row[ $column ])) {
+                    throw new Mutation_Failed("Rollback refused: a captured row is missing primary-key value \"{$column}\".");
+                }
+                $where[ $column ] = $row[ $column ];
+            }
+
+            $current = \WPMCP\Tools\Database\Database_Guard::before_image($table, $where, 1)[0] ?? null;
+            $pk_desc = self::describe_pk($where);
+
+            if ('delete' === $operation) {
+                if (null !== $current) {
+                    self::warn("Row {$pk_desc} in \"{$table}\" was recreated after the delete; it was overwritten with the captured before-image.");
+                }
+            } else {
+                if (null === $current) {
+                    self::warn("Row {$pk_desc} in \"{$table}\" was deleted after the operation; the captured before-image was reinserted.");
+                } elseif (! self::row_matches($current, array_merge($row, $set))) {
+                    self::warn("Row {$pk_desc} in \"{$table}\" changed after the operation; the captured before-image was restored over it.");
+                }
+            }
+
+            if (null === $current) {
+                if (false === $wpdb->insert($table, $row)) {
+                    throw new Mutation_Failed("Rollback failed to reinsert row {$pk_desc} into \"{$table}\": " . ($wpdb->last_error ?: 'insert failed'));
+                }
+                continue;
+            }
+
+            $restore = array_diff_key($row, array_flip($primary_key));
+            if ([] === $restore) {
+                continue; // PK-only table: existing row is already the before-image.
+            }
+            if (false === $wpdb->update($table, $restore, $where)) {
+                throw new Mutation_Failed("Rollback failed to restore row {$pk_desc} in \"{$table}\": " . ($wpdb->last_error ?: 'update failed'));
+            }
+        }
+    }
+
+    /** Human-readable "pk=value" description of a row's primary-key values, for warnings and errors. */
+    private static function describe_pk(array $where): string
+    {
+        $parts = [];
+        foreach ($where as $column => $value) {
+            $parts[] = $column . '=' . (is_scalar($value) ? (string) $value : wp_json_encode($value));
+        }
+        return '(' . implode(', ', $parts) . ')';
+    }
+
+    /**
+     * Loose column-wise equality between a live DB row and an expected state.
+     * MySQL hands every value back as a string (or null), while the expected
+     * side mixes captured strings with raw tool-arg values (ints, bools), so
+     * both sides are compared as strings, with null only ever equal to null.
+     * Only columns present in $expected are compared. False mismatches (e.g.
+     * float formatting) merely produce a spurious warning, never a failure.
+     */
+    private static function row_matches(array $current, array $expected): bool
+    {
+        foreach ($expected as $column => $value) {
+            $live = $current[ $column ] ?? null;
+            if (null === $value || null === $live) {
+                if ($value !== $live) {
+                    return false;
+                }
+                continue;
+            }
+            if ((string) $live !== (string) $value) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
