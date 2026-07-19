@@ -201,6 +201,26 @@ class ImportStockImageTest extends \WP_UnitTestCase
         }
     }
 
+    public function test_rejects_pixel_flood_images_small_on_disk_but_huge_decoded(): void
+    {
+        // A syntactically valid PNG header declaring 40000x40000 pixels:
+        // tiny on disk, ~4.8 GB decoded. Must be rejected on dimensions.
+        $ihdr          = pack('N', 40000) . pack('N', 40000) . "\x08\x02\x00\x00\x00";
+        $png           = "\x89PNG\r\n\x1a\n" . pack('N', 13) . 'IHDR' . $ihdr . pack('N', crc32('IHDR' . $ihdr));
+        $this->respond = [
+            'body'    => $png,
+            'headers' => ['content-type' => 'image/png', 'content-length' => (string) strlen($png)],
+        ];
+
+        try {
+            (new Import_Stock_Image())->handle(['image_url' => 'https://images.pexels.com/photos/9/bomb.png']);
+            $this->fail('Expected the pixel-flood image to be rejected.');
+        } catch (\RuntimeException $e) {
+            $this->assertStringContainsString('megapixel', $e->getMessage());
+            $this->assertCount(0, get_posts(['post_type' => 'attachment', 'post_status' => 'any', 'numberposts' => -1]));
+        }
+    }
+
     public function test_requires_image_url(): void
     {
         $this->expectException(\InvalidArgumentException::class);

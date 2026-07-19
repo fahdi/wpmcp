@@ -20,10 +20,14 @@ class ResizeMediaTest extends \WP_UnitTestCase
     {
         parent::setUp();
         Snapshot_Store::install();
-        add_image_size('wpmcp-spec-size', 120, 90, true);
+        // The attachment is uploaded FIRST, the size registered after: this
+        // mirrors the real "a plugin/theme added a size later" scenario that
+        // resize-media exists for (the size is registered but its file was
+        // never generated for older uploads).
         $this->media_id = (int) $this->factory->attachment->create_upload_object(
             DIR_TESTDATA . '/images/canola.jpg'
         );
+        add_image_size('wpmcp-spec-size', 120, 90, true);
     }
 
     protected function tearDown(): void

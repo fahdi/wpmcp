@@ -43,6 +43,17 @@ class SvgSanitizerTest extends \WP_UnitTestCase
         Svg_Sanitizer::sanitize($payload);
     }
 
+    public function test_rejects_doctype_hidden_by_utf16_encoding(): void
+    {
+        // The raw-byte DOCTYPE regex cannot see a UTF-16 payload; the
+        // post-parse doctype check must still reject it.
+        $utf8    = '<?xml version="1.0" encoding="UTF-16"?><!DOCTYPE svg [<!ENTITY x "y">]><svg xmlns="http://www.w3.org/2000/svg"><text>&x;</text></svg>';
+        $payload = "\xFF\xFE" . mb_convert_encoding($utf8, 'UTF-16LE', 'UTF-8');
+
+        $this->expectException(\InvalidArgumentException::class);
+        Svg_Sanitizer::sanitize($payload);
+    }
+
     public function test_accepts_and_preserves_a_benign_svg(): void
     {
         $svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10">'
