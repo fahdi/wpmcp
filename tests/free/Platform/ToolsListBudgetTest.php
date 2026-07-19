@@ -19,7 +19,7 @@ namespace WPMCP\Tests\Free\Platform;
 class ToolsListBudgetTest extends \WP_UnitTestCase
 {
     /** Max JSON bytes for the full tools/list payload of every registered ability. */
-    private const TOOLS_LIST_BYTE_BUDGET = 96000;
+    private const TOOLS_LIST_BYTE_BUDGET = 100000;
 
     /** @return array<int, array<string, mixed>> tools/list-shaped entries. */
     private static function payload(): array

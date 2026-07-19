@@ -15,9 +15,9 @@
  */
 
 return [
-    'total'     => 187,
+    'total'     => 188,
     'free'      => 163,
-    'pro'       => 24,
+    'pro'       => 25,
     'abilities' => [
         'wpmcp/acf-read' => 'free',
         'wpmcp/acf-write' => 'free',
@@ -203,6 +203,7 @@ return [
         'wpmcp/update-settings' => 'free',
         'wpmcp/update-theme' => 'free',
         'wpmcp/update-user' => 'free',
+        'wpmcp/update-widget' => 'pro',
         'wpmcp/upload-svg' => 'free',
         'wpmcp/validate-php-snippet' => 'free',
         'wpmcp/write-file' => 'free',

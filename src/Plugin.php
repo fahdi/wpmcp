@@ -172,6 +172,7 @@ use WPMCP\Tools\Elementor\List_Widgets;
 use WPMCP\Tools\Elementor\Get_Widget_Schema;
 use WPMCP\Tools\Elementor\Get_Elementor_Data;
 use WPMCP\Tools\Elementor\Update_Element;
+use WPMCP\Tools\Elementor\Update_Widget;
 use WPMCP\Tools\Elementor\Add_Widget;
 use WPMCP\Tools\Elementor\Remove_Element;
 use WPMCP\Tools\Elementor\Move_Element;
@@ -3184,8 +3185,11 @@ final class Plugin
      * only reaches a handler by invoking the ability, and each handler
      * degrades gracefully with a WP_Error when Elementor is not loaded. Both
      * tools are read-only (list-widgets and get-widget-schema inspect
-     * Elementor's own widgets manager and never touch post content), so
-     * neither is routed through the safety core.
+     * Elementor's own widgets manager plus the curated widget catalog and
+     * never touch post content), so neither is routed through the safety
+     * core. The catalog itself is pure data (Widget_Catalog), so widget
+     * coverage grows without growing this advertised tool surface — pinned
+     * by tests/free/Platform/ToolsListBudgetTest.php.
      */
     private function register_elementor_abilities(Registrar $registrar): void
     {
@@ -3195,7 +3199,7 @@ final class Plugin
         $registrar->register(new Ability(
             'wpmcp/list-widgets',
             'free',
-            'List Elementor registered widget types (name, title, categories, icon, tier), optionally filtered by tier (free/pro), category, or a case-insensitive search over name/title. Read-only; reads this site\'s Elementor widgets manager only',
+            'List Elementor registered widget types (name, title, categories, icon, tier, availability), annotated from the curated widget catalog (purpose line, cataloged flag). Filter by tier (free/pro), category, or a case-insensitive search over name/title/catalog keywords. Read-only',
             [
                 'type'       => 'object',
                 'properties' => [
@@ -3213,11 +3217,12 @@ final class Plugin
         $registrar->register(new Ability(
             'wpmcp/get-widget-schema',
             'free',
-            'Return the full control schema (control name, type, label, default, section grouping) for a single Elementor widget type, read directly from the widget\'s own control stack. Read-only; reads this site\'s Elementor widgets manager only',
+            'Return the settings schema for one Elementor widget type: the curated typed params (defaults, enums, responsive hints, required plugin) for cataloged widgets by default, or the full introspected control stack with full:true (also the fallback for non-cataloged widgets). Read-only',
             [
                 'type'       => 'object',
                 'properties' => [
                     'widget_name' => [ 'type' => 'string' ],
+                    'full'        => [ 'type' => 'boolean' ],
                 ],
                 'required'   => [ 'widget_name' ],
             ],
@@ -3240,11 +3245,11 @@ final class Plugin
      * Safe_Mutation::run() with object_type='post': `_elementor_data` is
      * ordinary postmeta on the page, so the existing post snapshot already
      * captures and restores it, and every write here is undoable with no
-     * change to the safety core. generate-widget additionally builds its
-     * settings from the curated Widget_Schema catalog rather than accepting
-     * a raw settings object, so it is the one tool here that never reaches
-     * Safe_Mutation::run() on an unsupported widget type or an incomplete
-     * settings payload.
+     * change to the safety core. add-widget, update-widget, and
+     * generate-widget validate typed params against the curated widget
+     * catalog (Widget_Catalog, issue #59) and build Elementor's real
+     * settings shapes from them, so an unsupported widget type or an
+     * invalid/incomplete params payload never reaches a write.
      */
     private function register_elementor_pro_abilities(Registrar $registrar): void
     {
@@ -3293,18 +3298,43 @@ final class Plugin
         $registrar->register(new Ability(
             'wpmcp/add-widget',
             'pro',
-            'Add a widget element (given a widget_type and optional settings) as a child of a specified parent element in a page\'s _elementor_data. The widget_type is validated against Elementor\'s own widgets manager first. Undoable via rollback-operation since _elementor_data is ordinary postmeta captured by the existing post snapshot',
+            'Add a widget to a page\'s _elementor_data under parent_id (or top level) at an optional position. Any cataloged widget_type (see list-widgets) takes typed params, validated against the curated schema before anything is written; non-cataloged registered widgets take raw settings. Requires expected_hash from get-elementor-data. Undoable via rollback-operation',
             [
                 'type'       => 'object',
                 'properties' => [
-                    'post_id'     => [ 'type' => 'integer' ],
-                    'parent_id'   => [ 'type' => 'string' ],
-                    'widget_type' => [ 'type' => 'string' ],
-                    'settings'    => [ 'type' => 'object' ],
+                    'post_id'       => [ 'type' => 'integer' ],
+                    'expected_hash' => [ 'type' => 'string' ],
+                    'parent_id'     => [ 'type' => 'string' ],
+                    'position'      => [ 'type' => 'integer' ],
+                    'widget_type'   => [ 'type' => 'string' ],
+                    'params'        => [ 'type' => 'object' ],
+                    'settings'      => [ 'type' => 'object' ],
                 ],
-                'required'   => [ 'post_id', 'parent_id', 'widget_type' ],
+                'required'   => [ 'post_id', 'expected_hash', 'widget_type' ],
             ],
             [$add_widget, 'handle'],
+            'edit_posts',
+            'elementor',
+            'update'
+        ));
+
+        $update_widget = new Update_Widget();
+
+        $registrar->register(new Ability(
+            'wpmcp/update-widget',
+            'pro',
+            'Patch a cataloged widget\'s settings by element id from typed curated params (same schema add-widget uses; see get-widget-schema), validated and merged into the existing settings. Non-cataloged widgets are refused toward update-element. Requires expected_hash from get-elementor-data. Undoable via rollback-operation',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'post_id'       => [ 'type' => 'integer' ],
+                    'expected_hash' => [ 'type' => 'string' ],
+                    'element_id'    => [ 'type' => 'string' ],
+                    'params'        => [ 'type' => 'object' ],
+                ],
+                'required'   => [ 'post_id', 'expected_hash', 'element_id', 'params' ],
+            ],
+            [$update_widget, 'handle'],
             'edit_posts',
             'elementor',
             'update'
@@ -3356,7 +3386,7 @@ final class Plugin
         $registrar->register(new Ability(
             'wpmcp/generate-widget',
             'pro',
-            'Generate a widget element (heading, text-editor, button, or image) from a curated settings schema and insert it into a page\'s _elementor_data, as a child of parent_id or at the top level when parent_id is omitted. Unknown widget types and missing required settings are rejected before anything is written. Undoable via rollback-operation since _elementor_data is ordinary postmeta captured by the existing post snapshot',
+            'Generate a widget element of any cataloged type from the curated settings schema (see list-widgets / get-widget-schema) and insert it into a page\'s _elementor_data, as a child of parent_id or at the top level when parent_id is omitted, with a deterministic seedable element id. Unknown types and invalid or missing required settings are rejected before anything is written. Undoable via rollback-operation',
             [
                 'type'       => 'object',
                 'properties' => [
