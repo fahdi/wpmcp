@@ -92,4 +92,60 @@ class HandshakeInstructionsTest extends \WP_UnitTestCase
 
         $this->assertSame($instructions->auto_summary(), $instructions->build());
     }
+
+    public function test_script_tags_in_the_stored_setting_are_stripped_at_read_time(): void
+    {
+        // The option can be written without the settings form's sanitize
+        // callback (wp-cli, direct update_option), so read-time stripping
+        // must hold on its own.
+        update_option(
+            Handshake_Instructions::OPTION,
+            "Use drafts only.<script>alert('xss')</script><img src=x onerror=alert(1)>"
+        );
+
+        $built = (new Handshake_Instructions())->build();
+
+        $this->assertStringContainsString('Use drafts only.', $built);
+        $this->assertStringNotContainsString('<script', $built);
+        $this->assertStringNotContainsString('</script>', $built);
+        $this->assertStringNotContainsString('<img', $built);
+        $this->assertStringNotContainsString('onerror', $built);
+    }
+
+    public function test_markup_in_the_site_name_is_stripped_from_the_auto_summary(): void
+    {
+        update_option('blogname', 'Legit Site<script>alert(1)</script>');
+
+        $summary = (new Handshake_Instructions())->auto_summary();
+
+        $this->assertStringContainsString('Legit Site', $summary);
+        $this->assertStringNotContainsString('<script', $summary);
+        $this->assertStringNotContainsString('alert(1)', $summary);
+    }
+
+    public function test_oversized_admin_text_is_clamped_so_the_payload_stays_bounded(): void
+    {
+        update_option(Handshake_Instructions::OPTION, str_repeat('x', 50000));
+
+        $instructions = new Handshake_Instructions();
+
+        $this->assertSame(Handshake_Instructions::MAX_ADMIN_LENGTH, mb_strlen($instructions->admin_text()));
+        $this->assertLessThanOrEqual(
+            Handshake_Instructions::MAX_ADMIN_LENGTH + Handshake_Instructions::MAX_SITE_NAME_LENGTH + 500,
+            mb_strlen($instructions->build()),
+            'Total handshake instructions must stay bounded: clamped admin text plus a small fixed-size summary.'
+        );
+    }
+
+    public function test_oversized_site_name_is_clamped_in_the_auto_summary(): void
+    {
+        update_option('blogname', str_repeat('n', 5000));
+
+        $summary = (new Handshake_Instructions())->auto_summary();
+
+        $this->assertLessThanOrEqual(
+            Handshake_Instructions::MAX_SITE_NAME_LENGTH + 500,
+            mb_strlen($summary)
+        );
+    }
 }
