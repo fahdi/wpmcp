@@ -117,6 +117,13 @@ class Rollback_Service
         if ('page_build' === $snapshot['object_type']) {
             return 'post:' . $snapshot['object_id'];
         }
+        // Same reasoning for a media import: the snapshot IS the oldest state
+        // of that attachment ("did not exist yet"), keyed as post:<id> so a
+        // session rollback deletes the import instead of restoring any later
+        // 'post' snapshot of the same attachment (e.g. an update-media edit).
+        if ('media_import' === $snapshot['object_type']) {
+            return 'post:' . $snapshot['object_id'];
+        }
         // Users, like posts, are identified by an int object_id, so the raw
         // object_type:object_id key is already stable and distinct.
         return $snapshot['object_type'] . ':' . $snapshot['object_id'];
@@ -393,6 +400,11 @@ class Rollback_Service
             return;
         }
 
+        if ('media_import' === $snapshot['object_type']) {
+            self::apply_media_import_snapshot($snapshot);
+            return;
+        }
+
         if ('post' !== $snapshot['object_type']) {
             return;
         }
@@ -605,6 +617,33 @@ class Rollback_Service
         }
 
         wp_delete_post($post_id, true);
+    }
+
+    /**
+     * Undo a media import (issue #64: import-stock-image / upload-svg).
+     * Same creation-snapshot semantics as 'page_build': the snapshot records
+     * the attachment the tool CREATED, so restoring it means deleting that
+     * attachment again — wp_delete_attachment(force) removes both the post
+     * row and the physical files, the true inverse of the import. The same
+     * post_date_gmt identity check protects an unrelated post that has since
+     * reclaimed the id, and a non-attachment at the id is likewise left
+     * untouched with a warning rather than destroyed.
+     */
+    private static function apply_media_import_snapshot(array $snapshot): void
+    {
+        $data     = (array) ($snapshot['data'] ?? []);
+        $media_id = (int) $snapshot['object_id'];
+        $current  = get_post($media_id);
+        if (! $current) {
+            return; // Already gone; nothing left to undo.
+        }
+
+        if ('attachment' !== $current->post_type || ($data['post_date_gmt'] ?? null) !== $current->post_date_gmt) {
+            self::warn("Post {$media_id} is not the attachment this import created (the id was reclaimed); it was left untouched.");
+            return;
+        }
+
+        wp_delete_attachment($media_id, true);
     }
 
     /** Human-readable "pk=value" description of a row's primary-key values, for warnings and errors. */

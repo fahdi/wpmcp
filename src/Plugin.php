@@ -91,6 +91,13 @@ use WPMCP\Tools\Media\Get_Media;
 use WPMCP\Tools\Media\Update_Media;
 use WPMCP\Tools\Media\Delete_Media;
 use WPMCP\Tools\Media\Sideload_Image;
+use WPMCP\Tools\Media\List_Media;
+use WPMCP\Tools\Media\Resize_Media;
+use WPMCP\Tools\Media\Upload_Svg;
+use WPMCP\Tools\Media\Stock\Set_Stock_Key;
+use WPMCP\Tools\Media\Stock\Search_Stock_Images;
+use WPMCP\Tools\Media\Stock\Import_Stock_Image;
+use WPMCP\Tools\Media\Stock\Insert_Stock_Image;
 use WPMCP\Tools\Settings\Get_Settings;
 use WPMCP\Tools\Settings\Update_Settings;
 use WPMCP\Tools\Users\List_Users;
@@ -743,6 +750,159 @@ final class Plugin
                 'required'   => [ 'url' ],
             ],
             [$sideload_image, 'handle'],
+            'edit_posts',
+            'media',
+            'create'
+        ));
+
+        $list_media          = new List_Media();
+        $resize_media        = new Resize_Media();
+        $upload_svg          = new Upload_Svg();
+        $set_stock_key       = new Set_Stock_Key();
+        $search_stock_images = new Search_Stock_Images();
+        $import_stock_image  = new Import_Stock_Image();
+        $insert_stock_image  = new Insert_Stock_Image();
+
+        $registrar->register(new Ability(
+            'wpmcp/list-media',
+            'free',
+            'List Media Library attachments with type ("image" or an exact mime like "image/png"), date-range (after/before), and search filters, paged newest first with a total/pages envelope',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'type'     => [ 'type' => 'string' ],
+                    'search'   => [ 'type' => 'string' ],
+                    'after'    => [ 'type' => 'string' ],
+                    'before'   => [ 'type' => 'string' ],
+                    'page'     => [ 'type' => 'integer' ],
+                    'per_page' => [ 'type' => 'integer' ],
+                ],
+            ],
+            [$list_media, 'handle'],
+            'edit_posts',
+            'media',
+            'read'
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/resize-media',
+            'free',
+            'Regenerate the specified registered image sizes for an attachment from its original file and report each resulting file (name, dimensions, URL). Snapshot-first with a physical-file backup, so the operation is rollbackable',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'media_id'   => [ 'type' => 'integer' ],
+                    'sizes'      => [ 'type' => 'array', 'items' => [ 'type' => 'string' ] ],
+                    'session_id' => [ 'type' => 'string' ],
+                ],
+                'required'   => [ 'media_id', 'sizes' ],
+            ],
+            [$resize_media, 'handle'],
+            'edit_posts',
+            'media',
+            'update'
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/upload-svg',
+            'free',
+            'Add an SVG to the Media Library from raw markup or an allowlisted URL. Every SVG passes a bundled fail-closed sanitizer (script/foreignObject/event handlers/external references are rejected outright); only the sanitized markup is stored. Rollback deletes the upload',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'markup'     => [ 'type' => 'string' ],
+                    'url'        => [ 'type' => 'string' ],
+                    'title'      => [ 'type' => 'string' ],
+                    'alt'        => [ 'type' => 'string' ],
+                    'post_id'    => [ 'type' => 'integer' ],
+                    'session_id' => [ 'type' => 'string' ],
+                ],
+            ],
+            [$upload_svg, 'handle'],
+            'upload_files',
+            'media',
+            'create'
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/set-stock-key',
+            'free',
+            'Store (or clear, by passing an empty api_key) a bring-your-own stock-provider API key for pexels or unsplash. Keys are encrypted at rest with a site-salt-derived key and are never echoed back',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'provider' => [ 'type' => 'string', 'enum' => [ 'pexels', 'unsplash' ] ],
+                    'api_key'  => [ 'type' => 'string' ],
+                ],
+                'required'   => [ 'provider', 'api_key' ],
+            ],
+            [$set_stock_key, 'handle'],
+            'manage_options',
+            'media',
+            'update'
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/search-stock-images',
+            'free',
+            'Search openly-licensed stock images. Providers: openverse (keyless, Creative Commons results), pexels and unsplash (bring-your-own key via set-stock-key). Results are provider-attributed with license, license_url, attribution, and source_url, ready to pass to import-stock-image',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'query'    => [ 'type' => 'string' ],
+                    'provider' => [ 'type' => 'string', 'enum' => [ 'openverse', 'pexels', 'unsplash' ] ],
+                    'page'     => [ 'type' => 'integer' ],
+                    'per_page' => [ 'type' => 'integer' ],
+                ],
+                'required'   => [ 'query' ],
+            ],
+            [$search_stock_images, 'handle'],
+            'edit_posts',
+            'media',
+            'read'
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/import-stock-image',
+            'free',
+            'Sideload a stock search result into the Media Library. The fetch is SSRF-guarded: https-only, host allowlist checked before any request (wpmcp_remote_media_allowed_hosts filter), redirects refused, size caps enforced, and the bytes must verify as a real image. Attribution/license metadata is persisted on the attachment; rollback deletes the import',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'image_url'   => [ 'type' => 'string' ],
+                    'provider'    => [ 'type' => 'string' ],
+                    'title'       => [ 'type' => 'string' ],
+                    'alt'         => [ 'type' => 'string' ],
+                    'post_id'     => [ 'type' => 'integer' ],
+                    'attribution' => [ 'type' => 'string' ],
+                    'license'     => [ 'type' => 'string' ],
+                    'license_url' => [ 'type' => 'string' ],
+                    'source_url'  => [ 'type' => 'string' ],
+                    'session_id'  => [ 'type' => 'string' ],
+                ],
+                'required'   => [ 'image_url' ],
+            ],
+            [$import_stock_image, 'handle'],
+            'edit_posts',
+            'media',
+            'create'
+        ));
+        $registrar->register(new Ability(
+            'wpmcp/insert-stock-image',
+            'pro',
+            'Composite stock-image flow: run the same SSRF-guarded import as import-stock-image, then insert the image into the post\'s builder content as a Gutenberg image block. Returns two independently rollbackable operation ids (undo the insert, undo the import)',
+            [
+                'type'       => 'object',
+                'properties' => [
+                    'post_id'     => [ 'type' => 'integer' ],
+                    'image_url'   => [ 'type' => 'string' ],
+                    'provider'    => [ 'type' => 'string' ],
+                    'title'       => [ 'type' => 'string' ],
+                    'alt'         => [ 'type' => 'string' ],
+                    'attribution' => [ 'type' => 'string' ],
+                    'license'     => [ 'type' => 'string' ],
+                    'license_url' => [ 'type' => 'string' ],
+                    'source_url'  => [ 'type' => 'string' ],
+                    'session_id'  => [ 'type' => 'string' ],
+                ],
+                'required'   => [ 'post_id', 'image_url' ],
+            ],
+            [$insert_stock_image, 'handle'],
             'edit_posts',
             'media',
             'create'
