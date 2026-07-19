@@ -160,7 +160,9 @@ abstract class Structural_Harness extends \WP_UnitTestCase
         $ids  = $this->all_ids($tree);
         $this->assertSame(count($ids), count(array_unique($ids)), 'Element ids must be unique across the page.');
         foreach ($ids as $id) {
-            $this->assertMatchesRegularExpression('/^[0-9a-f]{7}$/', $id, 'Element id must be 7-char hex.');
+            // Generated ids are 7-char hex (Element_Id); seeded fixtures may
+            // use any builder-compatible 7-char alphanumeric id.
+            $this->assertMatchesRegularExpression('/^[0-9a-z]{7}$/', $id, 'Element id must be 7-char alphanumeric.');
         }
         $this->assert_elements_instantiable($tree);
     }

@@ -29,7 +29,7 @@ class StructuralAbilitiesRegistrationTest extends \WP_UnitTestCase
     }
 
     /** @return array<string, callable> ability name => handler. */
-    private function suite(): array
+    private function structural_suite(): array
     {
         return [
             'wpmcp/add-container'        => [new Add_Container(), 'handle'],
@@ -62,7 +62,7 @@ class StructuralAbilitiesRegistrationTest extends \WP_UnitTestCase
         Gate::set_pro_for_tests(false);
 
         $registrar = new Registrar();
-        foreach ($this->suite() as $name => $handler) {
+        foreach ($this->structural_suite() as $name => $handler) {
             $registrar->register($this->make_ability($name, $handler));
         }
 
@@ -74,12 +74,12 @@ class StructuralAbilitiesRegistrationTest extends \WP_UnitTestCase
         Gate::set_pro_for_tests(true);
 
         $registrar = new Registrar();
-        foreach ($this->suite() as $name => $handler) {
+        foreach ($this->structural_suite() as $name => $handler) {
             $registrar->register($this->make_ability($name, $handler));
         }
 
         $names = array_map(fn ($a) => $a->name, $registrar->all());
-        foreach (array_keys($this->suite()) as $name) {
+        foreach (array_keys($this->structural_suite()) as $name) {
             $this->assertContains($name, $names);
         }
     }
@@ -90,7 +90,7 @@ class StructuralAbilitiesRegistrationTest extends \WP_UnitTestCase
 
         $map = \WPMCP\Tests\Free\Platform\RegisteredAbilities::manifest_map();
 
-        foreach (array_keys($this->suite()) as $name) {
+        foreach (array_keys($this->structural_suite()) as $name) {
             $this->assertArrayHasKey($name, $map, "{$name} must be registered by Plugin::register_abilities()");
             $this->assertSame('pro', $map[ $name ], "{$name} must be pro tier");
         }
