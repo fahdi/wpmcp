@@ -24,19 +24,6 @@ class Snapshot_Store
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
         $table   = self::table_name();
         $charset = $wpdb->get_charset_collate();
-        // Two dbDelta idempotence quirks are deliberately catered to here so
-        // that a repeat install() issues ZERO queries (dbDelta DDL implicitly
-        // commits any open transaction — in the test suite that silently
-        // broke the per-test isolation transaction of every test whose
-        // setUp() calls install(), leaking its rows into the shared DB):
-        //  - "PRIMARY KEY  (id)" uses TWO spaces, the exact form dbDelta
-        //    normalizes the live index description to; with one space the
-        //    strings never match and a failing ADD PRIMARY KEY is re-issued
-        //    on every call.
-        //  - BIGINT columns are declared "BIGINT(20) UNSIGNED" (matching how
-        //    MySQL reports them, and how WP core tables declare them);
-        //    declaring bare "BIGINT UNSIGNED" made dbDelta see a type change
-        //    on every call and re-issue three ALTER TABLE statements.
         dbDelta("CREATE TABLE {$table} (
             id BIGINT(20) UNSIGNED NOT NULL AUTO_INCREMENT,
             operation_id CHAR(36) NOT NULL,
@@ -48,7 +35,7 @@ class Snapshot_Store
             before_blob LONGBLOB NOT NULL,
             user_id BIGINT(20) UNSIGNED NOT NULL DEFAULT 0,
             created_at DATETIME NOT NULL,
-            PRIMARY KEY  (id),
+            PRIMARY KEY (id),
             KEY operation_id (operation_id),
             KEY session_id (session_id)
         ) {$charset};");
