@@ -1529,6 +1529,29 @@ final class Plugin
         $this->register_multisite_abilities($registrar);
         $this->register_analytics_abilities($registrar);
         $this->register_dispatch_abilities($registrar);
+        $this->register_integration_abilities($registrar);
+    }
+
+    /**
+     * Register the integration-dispatcher pairs (issue #65): one
+     * {integration}-read plus one {integration}-write ability per third-party
+     * integration, dispatching to a per-operation catalog instead of N flat
+     * tools. Registered unconditionally — availability is a call-time concern
+     * for dispatchers (a missing host plugin yields a structured
+     * integration_unavailable error, never a fatal), unlike the flat ACF/SEO/
+     * i18n groups which skip registration when their plugin is absent.
+     */
+    private function register_integration_abilities(Registrar $registrar): void
+    {
+        $integrations = [
+            new \WPMCP\Integrations\ACF_Integration(),
+        ];
+
+        foreach ($integrations as $integration) {
+            foreach ($integration->abilities() as $ability) {
+                $registrar->register($ability);
+            }
+        }
     }
 
     /**

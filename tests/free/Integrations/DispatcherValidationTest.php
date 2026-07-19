@@ -1,0 +1,162 @@
+<?php
+
+namespace WPMCP\Tests\Free\Integrations;
+
+/**
+ * Dispatch-level validation: unknown/disabled operations and malformed args
+ * must produce structured errors WITHOUT the op handler ever running (no
+ * side effects), and destructive ops must demand confirm:true.
+ */
+class DispatcherValidationTest extends \WP_UnitTestCase
+{
+    private Fixture_Integration $integration;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        Fixture_Integration::reset();
+        $this->integration = new Fixture_Integration();
+        wp_set_current_user(self::factory()->user->create([ 'role' => 'editor' ]));
+    }
+
+    protected function tearDown(): void
+    {
+        Fixture_Integration::reset();
+        parent::tearDown();
+    }
+
+    public function test_unknown_read_operation_returns_structured_error_without_side_effects(): void
+    {
+        $out = $this->integration->handle_read([ 'operation' => 'no-such-op' ]);
+
+        $this->assertSame('unknown_operation', $out['error']['code']);
+        $this->assertContains('ping', $out['error']['data']['operations']);
+        $this->assertSame([], Fixture_Integration::$calls);
+    }
+
+    public function test_read_op_is_not_reachable_through_the_write_dispatcher(): void
+    {
+        $out = $this->integration->handle_write([ 'operation' => 'ping', 'args' => [ 'value' => 'x' ] ]);
+
+        $this->assertSame('unknown_operation', $out['error']['code']);
+        $this->assertSame([], Fixture_Integration::$calls);
+    }
+
+    public function test_write_op_is_not_reachable_through_the_read_dispatcher(): void
+    {
+        $out = $this->integration->handle_read([ 'operation' => 'set-content', 'args' => [ 'post_id' => 1, 'content' => 'x' ] ]);
+
+        $this->assertSame('unknown_operation', $out['error']['code']);
+        $this->assertSame([], Fixture_Integration::$calls);
+    }
+
+    public function test_missing_required_arg_returns_invalid_args_without_side_effects(): void
+    {
+        $out = $this->integration->handle_read([ 'operation' => 'ping', 'args' => [] ]);
+
+        $this->assertSame('invalid_args', $out['error']['code']);
+        $this->assertSame([], Fixture_Integration::$calls);
+    }
+
+    public function test_wrong_arg_type_returns_invalid_args_without_side_effects(): void
+    {
+        $out = $this->integration->handle_write([
+            'operation' => 'set-content',
+            'args'      => [ 'post_id' => 'not-an-int', 'content' => 'x' ],
+        ]);
+
+        $this->assertSame('invalid_args', $out['error']['code']);
+        $this->assertSame([], Fixture_Integration::$calls);
+    }
+
+    public function test_valid_read_dispatches_to_the_handler(): void
+    {
+        $out = $this->integration->handle_read([ 'operation' => 'ping', 'args' => [ 'value' => 'hello' ] ]);
+
+        $this->assertArrayNotHasKey('error', $out);
+        $this->assertSame('ping', $out['operation']);
+        $this->assertSame([ 'pong' => 'hello' ], $out['result']);
+        $this->assertCount(1, Fixture_Integration::$calls);
+    }
+
+    public function test_default_off_op_returns_operation_disabled(): void
+    {
+        $out = $this->integration->handle_write([ 'operation' => 'default-off-op' ]);
+
+        $this->assertSame('operation_disabled', $out['error']['code']);
+        $this->assertSame([], Fixture_Integration::$calls);
+    }
+
+    public function test_default_off_op_runs_once_a_site_opts_in_via_filter(): void
+    {
+        $enable = fn ($enabled, $integration, $op) => ('testint' === $integration && 'default-off-op' === $op) ? true : $enabled;
+        add_filter('wpmcp_integration_op_enabled', $enable, 10, 3);
+        try {
+            $out = $this->integration->handle_write([ 'operation' => 'default-off-op' ]);
+        } finally {
+            remove_filter('wpmcp_integration_op_enabled', $enable);
+        }
+
+        $this->assertArrayNotHasKey('error', $out);
+        $this->assertSame([ 'done' => true ], $out['result']);
+    }
+
+    public function test_destructive_op_without_confirm_returns_confirmation_required(): void
+    {
+        $out = $this->integration->handle_write([ 'operation' => 'nuke' ]);
+
+        $this->assertSame('confirmation_required', $out['error']['code']);
+        $this->assertSame([], Fixture_Integration::$calls);
+    }
+
+    public function test_destructive_op_with_confirm_true_runs(): void
+    {
+        $out = $this->integration->handle_write([ 'operation' => 'nuke', 'confirm' => true ]);
+
+        $this->assertArrayNotHasKey('error', $out);
+        $this->assertSame([ 'nuked' => true ], $out['result']);
+    }
+
+    public function test_list_operations_exposes_the_catalog_with_per_op_schemas(): void
+    {
+        $out = $this->integration->handle_read([ 'operation' => 'list-operations' ]);
+
+        $this->assertArrayNotHasKey('error', $out);
+        $ops = [];
+        foreach ($out['result']['operations'] as $op) {
+            $ops[ $op['name'] ] = $op;
+        }
+
+        $this->assertSame('read', $ops['ping']['mode']);
+        $this->assertSame([ 'value' ], $ops['ping']['input_schema']['required']);
+        $this->assertSame('write', $ops['set-content']['mode']);
+        $this->assertSame('destructive', $ops['nuke']['mode']);
+        $this->assertTrue($ops['nuke']['requires_confirm']);
+        $this->assertFalse($ops['default-off-op']['enabled']);
+        $this->assertTrue($ops['ping']['enabled']);
+        $this->assertSame('manage_options', $ops['guarded-op']['capability']);
+        $this->assertTrue($out['result']['available']);
+    }
+
+    public function test_unavailable_integration_returns_structured_error_not_fatal(): void
+    {
+        Fixture_Integration::$available = false;
+
+        $read  = $this->integration->handle_read([ 'operation' => 'ping', 'args' => [ 'value' => 'x' ] ]);
+        $write = $this->integration->handle_write([ 'operation' => 'set-content', 'args' => [ 'post_id' => 1, 'content' => 'x' ] ]);
+
+        $this->assertSame('integration_unavailable', $read['error']['code']);
+        $this->assertSame('integration_unavailable', $write['error']['code']);
+        $this->assertSame([], Fixture_Integration::$calls);
+    }
+
+    public function test_list_operations_still_answers_when_unavailable(): void
+    {
+        Fixture_Integration::$available = false;
+
+        $out = $this->integration->handle_read([ 'operation' => 'list-operations' ]);
+
+        $this->assertArrayNotHasKey('error', $out);
+        $this->assertFalse($out['result']['available']);
+    }
+}

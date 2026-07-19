@@ -15,10 +15,12 @@
  */
 
 return [
-    'total'     => 170,
-    'free'      => 155,
+    'total'     => 172,
+    'free'      => 157,
     'pro'       => 15,
     'abilities' => [
+        'wpmcp/acf-read' => 'free',
+        'wpmcp/acf-write' => 'free',
         'wpmcp/activate-plugin' => 'free',
         'wpmcp/add-block' => 'free',
         'wpmcp/add-menu-item' => 'free',
